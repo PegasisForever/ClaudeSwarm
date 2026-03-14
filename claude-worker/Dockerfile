@@ -52,6 +52,7 @@ COPY monitor /opt/monitor/bin/monitor
 COPY nginx-monitor.conf /etc/nginx/conf.d/monitor.conf
 RUN sudo chmod +x /opt/monitor/bin/monitor
 # kasm docker cleans /tmp on startup, we need to wait until the flag disappears
+RUN sudo rm -rf /tmp/*
 RUN touch /tmp/monitor_flag
 
 # General config
@@ -60,7 +61,8 @@ COPY --chown=kasm-user:kasm-user tmux.conf /home/kasm-user/.tmux.conf
 COPY --chown=kasm-user:kasm-user bashrc /home/kasm-user/.bashrc
 COPY --chown=kasm-user:kasm-user setup.sh /home/kasm-user/setup.sh
 RUN rm /home/kasm-user/.bash_history
+RUN rm -rf /home/kasm-user/.vnc
 
 # Health check - polls the monitor tRPC health query every 1s
-HEALTHCHECK --interval=1s --timeout=3s --start-period=10s --retries=3 \
+HEALTHCHECK --interval=1s --timeout=3s --start-period=30s --retries=3 \
   CMD curl -fsS http://localhost:51301/monitor/trpc/health > /dev/null || exit 1

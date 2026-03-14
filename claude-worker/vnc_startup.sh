@@ -2,6 +2,8 @@
 ### every exit != 0 fails the script
 set -e
 
+exec > >(tee -a /home/kasm-user/vnc_startup.log) 2>&1
+
 APP_NAME=$(basename "$0")
 
 log () {
