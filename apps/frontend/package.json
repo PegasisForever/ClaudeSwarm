@@ -1,0 +1,28 @@
+{
+  "name": "@repo/frontend",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 4100 --strictPort",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src --ext .ts,.tsx"
+  },
+  "dependencies": {
+    "@repo/backend": "workspace:*",
+    "@tanstack/react-query": "^5.90.21",
+    "@trpc/client": "^11.12.0",
+    "@trpc/react-query": "^11.12.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "react-router": "^7.13.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.2.1",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "tailwindcss": "^4.2.1",
+    "vite": "^8.0.0"
+  }
+}

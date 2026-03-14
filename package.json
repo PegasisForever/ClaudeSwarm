@@ -1,0 +1,28 @@
+{
+  "name": "claudeswarm-monorepo",
+  "private": true,
+  "packageManager": "bun@1.3.9",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev --parallel --continue",
+    "build": "docker build -t claudeswarm-monorepo .",
+    "build:packages": "turbo run build",
+    "format": "prettier --write .",
+    "type-check-lint": "turbo run typecheck lint"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9",
+    "@types/node": "^25.5.0",
+    "eslint": "^9",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "globals": "^17.4.0",
+    "prettier": "^3.8.1",
+    "prettier-plugin-tailwindcss": "^0.7.2",
+    "turbo": "^2.8.17",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.57.0"
+  }
+}
