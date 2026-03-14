@@ -1,23 +1,35 @@
-import { initTRPC } from "@trpc/server"
+import { TRPCError, initTRPC } from "@trpc/server"
 import { z } from "zod"
+import { destroyWorkerContainer } from "./destroy-worker"
+import { listWorkers } from "./list-workers"
+import { startWorkerContainer } from "./start-worker"
 
 const t = initTRPC.create()
 
 export const router = t.router
 export const publicProcedure = t.procedure
 
-const workerStatusSchema = z.enum(["working", "idle", "waiting", "error"])
+const workerStatusSchema = z.enum([
+  "working",
+  "idle",
+  "waiting",
+  "error",
+  "stopped",
+])
 
 const workerSchema = z.object({
   title: z.string(),
+  preset: z.string(),
   status: workerStatusSchema,
   port: z.number(),
   durationS: z.number(),
-  baseBranch: z.string(),
   pr: z
     .object({
+      name: z.string(),
       number: z.string(),
       link: z.string(),
+      branch: z.string(),
+      baseBranch: z.string(),
     })
     .optional(),
 })
@@ -34,32 +46,58 @@ export const appRouter = router({
         ok: true as const,
       }
     }),
-  workers: publicProcedure.output(z.array(workerSchema)).query(() => {
-    return []
+  workers: publicProcedure.output(z.array(workerSchema)).query(async () => {
+    return listWorkers()
   }),
-  stopWorker: publicProcedure
+  destroyWorker: publicProcedure
     .input(
       z.object({
         port: z.number(),
       }),
     )
     .output(z.void())
-    .mutation(() => {
-      return undefined
+    .mutation(async ({ input }) => {
+      try {
+        await destroyWorkerContainer(input.port)
+        return undefined
+      } catch (error) {
+        console.error("[destroyWorker] failed to destroy worker", error)
+
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Failed to destroy worker",
+          cause: error,
+        })
+      }
     }),
   startWorker: publicProcedure
     .input(
       z.object({
         title: z.string(),
+        preset: z.string(),
         env: z.record(z.string(), z.string()),
       }),
     )
-    .output(z.object({
-      port: z.number(),
-    }))
-    .mutation(() => {
-      return {
-        port: 3000,
+    .output(
+      z.object({
+        port: z.number(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      try {
+        return await startWorkerContainer(input)
+      } catch (error) {
+        console.error("[startWorker] failed to start worker", error)
+
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message:
+            error instanceof Error ? error.message : "Failed to start worker",
+          cause: error,
+        })
       }
     }),
   logPage: publicProcedure

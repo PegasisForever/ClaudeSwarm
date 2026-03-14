@@ -34,25 +34,41 @@ This image (`pegasis0/claude-worker:latest`) is intended to be used as a **start
 | `GITHUB_TOKEN` | GitHub personal access token for repository operations |
 | `CLAUDE_PROMPT` | Initial prompt to send to Claude Code on startup |
 
+## Container Initialization
+
+When the container starts, the monitor process initializes the workspace in this order:
+
+1. It waits for `/tmp/monitor_flag` to disappear. The base container startup clears `/tmp`, so this prevents the monitor from racing the desktop startup sequence.
+2. It ensures two tmux sessions exist: `claude` and `terminal`.
+3. It runs `source ~/setup.sh` inside the `claude` tmux session.
+4. It starts Claude Code in that same `claude` session, appending `CLAUDE_PROMPT` when provided.
+5. It watches for the Claude trust prompt and automatically confirms it when needed.
+6. It reads Claude's current working directory and changes the `terminal` tmux session into the same directory.
+
+For end-user customization, the most important hook is `~/setup.sh`. Build your own image on top of this one and replace that file to install dependencies, export environment variables, clone repositories, or prepare the workspace before Claude starts.
+
 ## API Endpoints
 
-The monitor provides HTTP and WebSocket endpoints at `/monitor/*`:
+The monitor exposes tRPC HTTP queries under `/monitor/trpc/*` and a terminal websocket at `/monitor/ws`.
 
-### `GET /monitor/api/status`
+### `GET /monitor/trpc/status`
 
-Returns the current state of the Claude Code session.
+Returns the current state of the Claude Code session as a tRPC query response.
 
 **Response:**
 ```json
 {
-  "status": "working",
-  "cwd": "~/Projects/my-repo",
-  "hostname": "worker1",
-  "pr": {
-    "number": 42,
-    "url": "https://github.com/user/repo/pull/42",
-    "title": "Add new feature",
-    "headRefName": "feature-branch"
+  "result": {
+    "data": {
+      "status": "working",
+      "pr": {
+        "name": "Add new feature",
+        "number": "42",
+        "link": "https://github.com/user/repo/pull/42",
+        "branch": "feature-branch",
+        "baseBranch": "main"
+      }
+    }
   }
 }
 ```
@@ -60,36 +76,31 @@ Returns the current state of the Claude Code session.
 | Field | Type | Description |
 |-------|------|-------------|
 | `status` | `"idle" \| "waiting" \| "working"` | Claude session state |
-| `cwd` | `string` | Current working directory (with `$HOME` replaced by `~`) |
-| `hostname` | `string` | Container hostname |
-| `pr` | `object \| null` | Open PR for the current branch (if any) |
+| `pr` | `object \| undefined` | Open PR for the current branch, if one can be resolved with `gh pr view` |
 
 **Status values:**
 - `idle` — Claude is not running (bash prompt visible)
 - `waiting` — Claude is waiting for user input
 - `working` — Claude is actively processing
 
-### `POST /monitor/api/stop`
+### `GET /monitor/trpc/health`
 
-Gracefully stops the container by sending SIGTERM to PID 1.
-
-**Response:**
-```json
-{
-  "success": true
-}
-```
-
-### `GET /monitor/api/health`
-
-Health check endpoint that always returns 200 OK when the monitor is running. Used by Docker health checks.
+Health check query used by Docker.
 
 **Response:**
 ```json
 {
-  "status": "ok"
+  "result": {
+    "data": {
+      "ok": true
+    }
+  }
 }
 ```
+
+### Removed endpoints
+
+The older REST-style monitor endpoints such as `/monitor/api/status`, `/monitor/api/health`, and `/monitor/api/stop` are no longer served by the current monitor implementation.
 
 ### `WS /monitor/ws?cmd=<command>`
 

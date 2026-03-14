@@ -1,0 +1,14 @@
+{
+  "presets": [
+    {
+      "name": "default",
+      "imageTag": "pegasis0/claude-worker:latest",
+      "presetEnv": {},
+      "requiredEnv": [
+        "CLAUDE_CODE_OAUTH_TOKEN",
+        "GITHUB_TOKEN",
+        "CLAUDE_PROMPT"
+      ]
+    }
+  ]
+}
