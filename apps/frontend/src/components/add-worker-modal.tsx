@@ -11,32 +11,35 @@ import {
   SelectItem,
 } from "@heroui/react"
 import { useMemo, useState, type Key } from "react"
-import type { PresetInfo, StartWorkerInput } from "../lib/api-types"
+import { useNavigate } from "react-router"
+import type { PresetInfo } from "../lib/api-types"
+import { trpc } from "../trpc"
 
 type AddWorkerModalProps = {
-  errorMessage?: string
   isOpen: boolean
-  isPending: boolean
   onOpenChange: (open: boolean) => void
-  onSubmit: (input: StartWorkerInput) => void
   presets: PresetInfo[]
 }
 
-function isSensitiveEnv(name: string) {
-  return /token|secret|key|password/i.test(name)
-}
-
 export function AddWorkerModal({
-  errorMessage,
   isOpen,
-  isPending,
   onOpenChange,
-  onSubmit,
   presets,
 }: AddWorkerModalProps) {
+  const navigate = useNavigate()
+  const utils = trpc.useUtils()
+
   const [title, setTitle] = useState("")
   const [presetName, setPresetName] = useState("")
   const [envValues, setEnvValues] = useState<Record<string, string>>({})
+
+  const startWorker = trpc.startWorker.useMutation({
+    onSuccess: async ({ port }) => {
+      onOpenChange(false)
+      await utils.workers.invalidate()
+      navigate(`/${port}`)
+    },
+  })
 
   const effectivePresetName = presetName || presets[0]?.name || ""
   const selectedPreset = useMemo(
@@ -46,14 +49,19 @@ export function AddWorkerModal({
 
   const missingRequiredField =
     title.trim().length === 0 ||
-    (selectedPreset?.requiredEnv.some((key) => (envValues[key] ?? "").trim().length === 0) ??
+    (selectedPreset?.requiredEnv.some(
+      (key) => (envValues[key] ?? "").trim().length === 0,
+    ) ??
       true)
+
+  const errorMessage = startWorker.error?.message
 
   const handleOpenChange = (open: boolean) => {
     if (!open) {
       setTitle("")
       setPresetName("")
       setEnvValues({})
+      startWorker.reset()
     }
 
     onOpenChange(open)
@@ -62,10 +70,6 @@ export function AddWorkerModal({
   return (
     <Modal
       backdrop="blur"
-      classNames={{
-        backdrop: "bg-background/70",
-        base: "border border-white/5 bg-content1/95 text-foreground",
-      }}
       isOpen={isOpen}
       onOpenChange={handleOpenChange}
       placement="top-center"
@@ -75,10 +79,10 @@ export function AddWorkerModal({
         {(close) => (
           <>
             <ModalHeader className="flex flex-col gap-1 pb-3">
-              <p className="text-xs uppercase tracking-[0.24em] text-default-500">
+              <p className="text-default-500 text-xs tracking-[0.24em] uppercase">
                 Start worker
               </p>
-              <p className="text-2xl font-semibold text-foreground">
+              <p className="text-foreground text-2xl font-semibold">
                 Create a new worker from a preset
               </p>
             </ModalHeader>
@@ -105,7 +109,9 @@ export function AddWorkerModal({
                 label="Preset"
                 onSelectionChange={(keys) => {
                   const nextKey =
-                    keys === "all" ? undefined : (Array.from(keys)[0] as Key | undefined)
+                    keys === "all"
+                      ? undefined
+                      : (Array.from(keys)[0] as Key | undefined)
 
                   if (typeof nextKey === "string") {
                     setPresetName(nextKey)
@@ -119,7 +125,7 @@ export function AddWorkerModal({
               </Select>
 
               {presets.length === 0 ? (
-                <p className="text-sm text-default-400">
+                <p className="text-default-400 text-sm">
                   No presets are currently available from the backend.
                 </p>
               ) : null}
@@ -127,10 +133,10 @@ export function AddWorkerModal({
               {selectedPreset ? (
                 <div className="space-y-3">
                   <div className="space-y-1">
-                    <p className="text-xs uppercase tracking-[0.22em] text-default-500">
+                    <p className="text-default-500 text-xs tracking-[0.22em] uppercase">
                       Required environment
                     </p>
-                    <p className="text-sm text-default-400">
+                    <p className="text-default-400 text-sm">
                       These fields come directly from the selected preset.
                     </p>
                   </div>
@@ -150,7 +156,7 @@ export function AddWorkerModal({
                             [envKey]: value,
                           }))
                         }
-                        type={isSensitiveEnv(envKey) ? "password" : "text"}
+                        type={"text"}
                         value={envValues[envKey] ?? ""}
                       />
                     ))}
@@ -159,7 +165,7 @@ export function AddWorkerModal({
               ) : null}
 
               {errorMessage ? (
-                <p className="text-sm text-danger">{errorMessage}</p>
+                <p className="text-danger text-sm">{errorMessage}</p>
               ) : null}
             </ModalBody>
             <Divider />
@@ -170,13 +176,13 @@ export function AddWorkerModal({
               <Button
                 color="secondary"
                 isDisabled={missingRequiredField}
-                isLoading={isPending}
+                isLoading={startWorker.isPending}
                 onPress={() => {
                   if (!selectedPreset) {
                     return
                   }
 
-                  onSubmit({
+                  startWorker.mutate({
                     env: envValues,
                     preset: selectedPreset.name,
                     title: title.trim(),

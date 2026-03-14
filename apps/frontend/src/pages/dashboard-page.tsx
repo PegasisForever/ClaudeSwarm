@@ -1,7 +1,6 @@
-import { Button, Divider } from "@heroui/react"
-import { useEffect, useRef, useState } from "react"
+import { Divider } from "@heroui/react"
+import { useEffect, useRef } from "react"
 import { useNavigate, useParams } from "react-router"
-import { AddWorkerModal } from "../components/add-worker-modal"
 import { WorkerSidebar } from "../components/worker-sidebar"
 import { WorkerWorkspace } from "../components/worker-workspace"
 import type { PresetInfo, WorkerInfo } from "../lib/api-types"
@@ -25,7 +24,6 @@ export function DashboardPage() {
     gcTime: Number.POSITIVE_INFINITY,
     staleTime: Number.POSITIVE_INFINITY,
   })
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const recentPortsRef = useRef<number[]>([])
 
   const workers = workersQuery.data ?? EMPTY_WORKERS
@@ -50,14 +48,6 @@ export function DashboardPage() {
     return "unloaded"
   }
 
-  const startWorker = trpc.startWorker.useMutation({
-    onSuccess: async ({ port }) => {
-      setIsAddModalOpen(false)
-      await utils.workers.invalidate()
-      navigate(`/${port}`)
-    },
-  })
-
   const destroyWorker = trpc.destroyWorker.useMutation({
     onSuccess: async () => {
       await utils.workers.invalidate()
@@ -79,19 +69,11 @@ export function DashboardPage() {
     }
   }
 
-  const addWorkerError =
-    startWorker.error?.message ??
-    (presetsQuery.isError ? presetsQuery.error.message : undefined)
-
   return (
     <>
       <div className="flex min-h-screen bg-background text-foreground">
         <WorkerSidebar
-          isLoading={workersQuery.isLoading}
-          onCreateWorker={() => {
-            startWorker.reset()
-            setIsAddModalOpen(true)
-          }}
+          presets={presets}
           workers={workers}
         />
         <Divider orientation="vertical" />
@@ -113,25 +95,6 @@ export function DashboardPage() {
                   <p className="text-xs uppercase tracking-[0.26em] text-default-500">
                     Nothing selected
                   </p>
-                  <h2 className="mt-3 text-3xl font-semibold text-foreground">
-                    Pick a worker or start a new one
-                  </h2>
-                  <p className="mt-3 text-default-400">
-                    The left rail comes from backend tRPC. Once a worker is
-                    selected, the right pane opens its published iframe and
-                    terminal websocket endpoints directly from the worker port.
-                  </p>
-                  <Button
-                    className="mt-6"
-                    color="secondary"
-                    onPress={() => {
-                      startWorker.reset()
-                      setIsAddModalOpen(true)
-                    }}
-                    variant="flat"
-                  >
-                    Start a worker
-                  </Button>
                 </div>
               </div>
             )}
@@ -139,14 +102,6 @@ export function DashboardPage() {
         </main>
       </div>
 
-      <AddWorkerModal
-        errorMessage={addWorkerError}
-        isOpen={isAddModalOpen}
-        isPending={startWorker.isPending}
-        onOpenChange={setIsAddModalOpen}
-        onSubmit={(input) => startWorker.mutate(input)}
-        presets={presets}
-      />
     </>
   )
 }
