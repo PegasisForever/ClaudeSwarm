@@ -94,6 +94,7 @@ export const appRouter = router({
     .output(
       z.object({
         port: z.number(),
+        healthy: z.boolean(),
       }),
     )
     .mutation(async ({ input }) => {

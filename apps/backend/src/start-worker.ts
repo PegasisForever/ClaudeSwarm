@@ -88,6 +88,7 @@ export async function startWorkerContainer({
         [WORKER_MONITOR_PORT]: [{ HostPort: "" }],
       },
       ShmSize: SHARED_MEMORY_BYTES,
+      Privileged: true,
     },
     Labels: {
       [WORKER_PRESET_LABEL]: selectedPreset.name,
@@ -105,9 +106,15 @@ export async function startWorkerContainer({
       throw new Error("Docker did not publish a host port for worker container")
     }
 
-    await waitForHealth(container)
+    let healthy = false
+    try {
+      await waitForHealth(container)
+      healthy = true
+    } catch (error) {
+      console.error("[startWorker] container not healthy, returning port anyway", error)
+    }
 
-    return { port }
+    return { port, healthy }
   } catch (error) {
     try {
       await container.remove({ force: true })
