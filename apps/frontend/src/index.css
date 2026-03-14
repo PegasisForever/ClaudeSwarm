@@ -17,9 +17,7 @@ html,
 body {
   margin: 0;
   min-height: 100%;
-  background:
-    radial-gradient(circle at top, rgba(120, 40, 200, 0.18), transparent 35%),
-    linear-gradient(180deg, #09090f 0%, #06060b 55%, #030308 100%);
+  background: #282828;
   color: #f5f3ff;
 }
 
@@ -44,11 +42,7 @@ textarea {
 
 .app-grid {
   min-height: 100vh;
-  background:
-    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
-  background-position: center;
-  background-size: 32px 32px;
+  background: #282828;
 }
 
 .terminal-host {

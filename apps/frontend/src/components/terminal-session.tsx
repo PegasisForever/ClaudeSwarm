@@ -18,7 +18,7 @@ type TerminalMessage =
   | { type: "exit"; exitCode: number }
 
 const terminalTheme = {
-  background: "#09090f",
+  background: "#282828",
   foreground: "#f5f3ff",
   cursor: "#c084fc",
   cursorAccent: "#09090f",

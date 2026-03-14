@@ -1,15 +1,19 @@
-import { Button, Divider, Spinner, Tooltip } from "@heroui/react"
+import { Button, Spinner, Tooltip } from "@heroui/react"
+import { IconCode, IconTerminal2, IconTrash } from "@tabler/icons-react"
+import { useAtom } from "jotai"
+import { atomWithStorage } from "jotai/utils"
 import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react"
 import { getTerminalSelectionKey, readStoredString, writeStoredString } from "../lib/storage"
-import type { WorkerInfo } from "../lib/api-types"
 import { TerminalSession } from "./terminal-session"
 import { getWorkerIframeUrl } from "../lib/worker-urls"
 
+const DEFAULT_TERMINAL_HEIGHT = 320
+const terminalHeightAtom = atomWithStorage("terminal-height", DEFAULT_TERMINAL_HEIGHT)
+
 type WorkerWorkspaceProps = {
   isActive: boolean
-  onTerminalHeightChange: (height: number) => void
-  terminalHeight: number
-  worker: WorkerInfo
+  onDestroyWorker: () => void
+  workerPort: number
 }
 
 type TerminalName = "claude" | "terminal"
@@ -38,32 +42,37 @@ function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(Math.max(value, minimum), maximum)
 }
 
+const terminalIcons: Record<TerminalName, typeof IconCode> = {
+  claude: IconCode,
+  terminal: IconTerminal2,
+}
+
 export function WorkerWorkspace({
   isActive,
-  onTerminalHeightChange,
-  terminalHeight,
-  worker,
+  onDestroyWorker,
+  workerPort,
 }: WorkerWorkspaceProps) {
   const shellRef = useRef<HTMLDivElement | null>(null)
+  const [terminalHeight, setTerminalHeight] = useAtom(terminalHeightAtom)
   const [activeTerminal, setActiveTerminal] = useState<TerminalName>(() => {
-    const storedTerminal = readStoredString(getTerminalSelectionKey(worker.port))
+    const storedTerminal = readStoredString(getTerminalSelectionKey(workerPort))
     return storedTerminal === "terminal" ? "terminal" : "claude"
   })
   const [iframeState, setIframeState] = useState<"loading" | "ready" | "error">(
-    worker.port > 0 ? "loading" : "error",
+    workerPort > 0 ? "loading" : "error",
   )
 
   const iframeUrl = useMemo(() => {
-    if (worker.port <= 0) {
+    if (workerPort <= 0) {
       return undefined
     }
 
-    return getWorkerIframeUrl(worker.port)
-  }, [worker.port])
+    return getWorkerIframeUrl(workerPort)
+  }, [workerPort])
 
   useEffect(() => {
-    writeStoredString(getTerminalSelectionKey(worker.port), activeTerminal)
-  }, [activeTerminal, worker.port])
+    writeStoredString(getTerminalSelectionKey(workerPort), activeTerminal)
+  }, [activeTerminal, workerPort])
 
   const beginResize = (event: ReactMouseEvent<HTMLButtonElement>) => {
     const shell = shellRef.current
@@ -84,7 +93,7 @@ export function WorkerWorkspace({
 
     const handlePointerMove = (moveEvent: globalThis.MouseEvent) => {
       const delta = startY - moveEvent.clientY
-      onTerminalHeightChange(
+      setTerminalHeight(
         clamp(startHeight + delta, MIN_TERMINAL_HEIGHT, maximumHeight),
       )
     }
@@ -117,7 +126,6 @@ export function WorkerWorkspace({
                 onError={() => setIframeState("error")}
                 onLoad={() => setIframeState("ready")}
                 src={iframeUrl}
-                title={`${worker.title} preview`}
               />
               {iframeState !== "ready" ? (
                 <div className="absolute inset-0 flex items-center justify-center bg-background/82 backdrop-blur-sm">
@@ -168,43 +176,51 @@ export function WorkerWorkspace({
           </div>
 
           <div
-            className="relative shrink-0 overflow-hidden"
+            className="relative flex shrink-0 overflow-hidden"
             style={{ height: `${terminalHeight}px` }}
           >
-            <div className="flex h-12 items-center justify-between px-5">
-              <div className="flex items-center gap-2">
+            <div className="flex flex-col items-center justify-between border-r border-divider px-1.5 py-2">
+              <div className="flex flex-col items-center gap-1">
                 {terminalSessions.map((session) => {
                   const isSelected = activeTerminal === session.value
+                  const Icon = terminalIcons[session.value]
 
                   return (
-                    <Button
-                      className={isSelected ? "text-primary" : "text-default-500"}
-                      color={isSelected ? "secondary" : "default"}
-                      key={session.value}
-                      onPress={() => setActiveTerminal(session.value)}
-                      radius="full"
-                      size="sm"
-                      variant="light"
-                    >
-                      {session.label}
-                    </Button>
+                    <Tooltip content={session.label} key={session.value} placement="right">
+                      <Button
+                        className={isSelected ? "text-primary" : "text-default-500"}
+                        color={isSelected ? "secondary" : "default"}
+                        isIconOnly
+                        onPress={() => setActiveTerminal(session.value)}
+                        size="sm"
+                        variant="light"
+                      >
+                        <Icon size={18} />
+                      </Button>
+                    </Tooltip>
                   )
                 })}
               </div>
-              <Tooltip content="Worker terminal websocket">
-                <p className="text-[11px] uppercase tracking-[0.2em] text-default-500">
-                  /monitor/ws
-                </p>
+              <Tooltip content="Destroy worker" placement="right">
+                <Button
+                  className="text-default-500"
+                  color="danger"
+                  isIconOnly
+                  onPress={onDestroyWorker}
+                  size="sm"
+                  variant="light"
+                >
+                  <IconTrash size={18} />
+                </Button>
               </Tooltip>
             </div>
-            <Divider />
-            <div className="relative h-[calc(100%-49px)]">
+            <div className="relative min-w-0 flex-1">
               {terminalSessions.map((session) => (
                 <TerminalSession
                   command={session.command}
                   isActive={isActive && activeTerminal === session.value}
                   key={session.value}
-                  port={worker.port}
+                  port={workerPort}
                   title={session.label}
                 />
               ))}

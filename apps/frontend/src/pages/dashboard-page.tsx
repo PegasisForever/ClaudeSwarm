@@ -7,14 +7,10 @@ import type { PresetInfo, WorkerInfo } from "../lib/api-types"
 import {
   clearSelectedWorkerPort,
   readSelectedWorkerPort,
-  readTerminalHeight,
   writeSelectedWorkerPort,
-  writeTerminalHeight,
 } from "../lib/storage"
-import { statusTone } from "../lib/format"
 import { trpc } from "../trpc"
 
-const DEFAULT_TERMINAL_HEIGHT = 320
 const MAX_CACHED_WORKSPACES = 3
 const EMPTY_WORKERS: WorkerInfo[] = []
 const EMPTY_PRESETS: PresetInfo[] = []
@@ -34,9 +30,6 @@ export function DashboardPage() {
     readSelectedWorkerPort(),
   )
   const [visitedPorts, setVisitedPorts] = useState<number[]>([])
-  const [terminalHeight, setTerminalHeightState] = useState(() =>
-    readTerminalHeight(DEFAULT_TERMINAL_HEIGHT),
-  )
 
   const workers = workersQuery.data ?? EMPTY_WORKERS
   const presets = presetsQuery.data ?? EMPTY_PRESETS
@@ -108,10 +101,6 @@ export function DashboardPage() {
     destroyWorker.mutate({ port: worker.port })
   }
 
-  const handleTerminalHeightChange = (height: number) => {
-    setTerminalHeightState(height)
-    writeTerminalHeight(height)
-  }
 
   return (
     <>
@@ -132,74 +121,14 @@ export function DashboardPage() {
         <Divider orientation="vertical" />
 
         <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
-          <header className="px-6 py-5">
-            <div className="flex flex-wrap items-end justify-between gap-4">
-              <div>
-                <p className="text-xs uppercase tracking-[0.26em] text-default-500">
-                  Worker dashboard
-                </p>
-                <div className="mt-2 flex items-center gap-3">
-                  {selectedWorker ? (
-                    <>
-                      <span
-                        className={`h-2.5 w-2.5 rounded-full ${statusTone(selectedWorker.status)}`}
-                      />
-                      <h2 className="text-2xl font-semibold">
-                        {selectedWorker.title}
-                      </h2>
-                    </>
-                  ) : (
-                    <h2 className="text-2xl font-semibold">Select a worker</h2>
-                  )}
-                </div>
-                <p className="mt-2 text-sm text-default-400">
-                  The last three visited workers stay mounted so the iframe and
-                  terminals reconnect less often.
-                </p>
-              </div>
-
-              {selectedWorker ? (
-                <div className="flex items-center gap-3 text-right">
-                  <Tooltip content="Published worker port">
-                    <div className="text-sm text-default-400">
-                      <p className="uppercase tracking-[0.2em] text-default-500">
-                        Port
-                      </p>
-                      <p className="mt-1 font-mono text-foreground">
-                        {selectedWorker.port}
-                      </p>
-                    </div>
-                  </Tooltip>
-                  <Button
-                    color="danger"
-                    isLoading={destroyWorker.isPending}
-                    onPress={() => handleDestroyWorker(selectedWorker)}
-                    variant="light"
-                  >
-                    Destroy
-                  </Button>
-                </div>
-              ) : null}
-            </div>
-
-            {workersQuery.isError ? (
-              <p className="mt-4 text-sm text-danger">
-                Failed to load workers: {workersQuery.error.message}
-              </p>
-            ) : null}
-          </header>
-
-          <Divider />
-
           <div className="relative min-h-0 flex-1 overflow-hidden">
             {selectedWorker ? (
               cachedWorkers.map((worker) => (
                 <WorkerWorkspace
                   isActive={worker.port === selectedWorker.port}
                   key={worker.port}
-                  onTerminalHeightChange={handleTerminalHeightChange}
-                  terminalHeight={terminalHeight}
-                  worker={worker}
+                  onDestroyWorker={() => handleDestroyWorker(worker)}
+                  workerPort={worker.port}
                 />
               ))
             ) : (
