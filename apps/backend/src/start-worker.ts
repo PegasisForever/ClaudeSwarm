@@ -77,6 +77,14 @@ export async function startWorkerContainer({
 
   assertRequiredEnv(selectedPreset.requiredEnv, mergedEnv)
 
+  const pullStream = await docker.pull(selectedPreset.imageTag)
+  await new Promise<void>((resolve, reject) => {
+    docker.modem.followProgress(pullStream, (err: Error | null) => {
+      if (err) return reject(err)
+      resolve()
+    })
+  })
+
   const container = await docker.createContainer({
     Image: selectedPreset.imageTag,
     Env: toContainerEnv(mergedEnv),

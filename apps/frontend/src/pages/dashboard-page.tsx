@@ -1,14 +1,10 @@
-import { Divider } from "@heroui/react"
-import { useEffect, useRef } from "react"
+import { useState } from "react"
 import { useNavigate, useParams } from "react-router"
 import { WorkerSidebar } from "../components/worker-sidebar"
 import { WorkerWorkspace } from "../components/worker-workspace"
-import type { PresetInfo, WorkerInfo } from "../lib/api-types"
 import { trpc } from "../trpc"
 
 const MAX_CACHED_WORKSPACES = 3
-const EMPTY_WORKERS: WorkerInfo[] = []
-const EMPTY_PRESETS: PresetInfo[] = []
 
 export function DashboardPage() {
   const navigate = useNavigate()
@@ -23,23 +19,25 @@ export function DashboardPage() {
     gcTime: Number.POSITIVE_INFINITY,
     staleTime: Number.POSITIVE_INFINITY,
   })
-  const recentPortsRef = useRef<number[]>([])
+  const [recentPorts, setRecentPorts] = useState<number[]>([])
+  const [prevActivePort, setPrevActivePort] = useState<number | undefined>()
 
-  const workers = workersQuery.data ?? EMPTY_WORKERS
-  const presets = presetsQuery.data ?? EMPTY_PRESETS
+  const workers = workersQuery.data ?? []
+  const presets = presetsQuery.data ?? []
 
-  // Track visited ports for caching
-  useEffect(() => {
-    if (activePort === undefined) return
-    recentPortsRef.current = [
-      activePort,
-      ...recentPortsRef.current.filter((p) => p !== activePort),
-    ].slice(0, MAX_CACHED_WORKSPACES)
-  }, [activePort])
+  if (activePort !== undefined && activePort !== prevActivePort) {
+    setPrevActivePort(activePort)
+    setRecentPorts((prev) =>
+      [activePort, ...prev.filter((p) => p !== activePort)].slice(
+        0,
+        MAX_CACHED_WORKSPACES,
+      ),
+    )
+  }
 
   const availablePorts = new Set(workers.map((w) => w.port))
 
-  const cachedPorts = recentPortsRef.current.filter((p) => availablePorts.has(p))
+  const cachedPorts = recentPorts.filter((p) => availablePorts.has(p))
 
   const getWorkerState = (port: number): "active" | "cached" | "unloaded" => {
     if (port === activePort) return "active"
@@ -48,7 +46,7 @@ export function DashboardPage() {
   }
 
   const handleWorkerDestroyed = (port: number) => {
-    recentPortsRef.current = recentPortsRef.current.filter((p) => p !== port)
+    setRecentPorts((prev) => prev.filter((p) => p !== port))
     if (activePort === port) {
       void navigate("/")
     }
@@ -74,7 +72,7 @@ export function DashboardPage() {
                 />
               ))
             ) : (
-              <div className="flex h-full items-center justify-center px-6">
+              <div className="flex h-full items-center justify-center px-6 bg-[#282828]">
                 <div className="max-w-lg text-center">
                   <p className="text-xs uppercase tracking-[0.26em] text-default-500">
                     Nothing selected

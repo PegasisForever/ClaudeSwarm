@@ -12,5 +12,24 @@ const ConfigSchema = z.object({
   ),
 })
 
-const rawConfig = readFileSync("./config.json", "utf-8")
-export const config = ConfigSchema.parse(JSON.parse(rawConfig))
+const defaultConfig: z.infer<typeof ConfigSchema> = {
+  presets: [
+    {
+      name: "default",
+      imageTag: "pegasis0/claude-worker:latest",
+      presetEnv: {},
+      requiredEnv: ["GITHUB_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN", "CLAUDE_PROMPT"],
+    },
+  ],
+}
+
+let config: z.infer<typeof ConfigSchema>
+try {
+  const rawConfig = readFileSync("./config.json", "utf-8")
+  config = ConfigSchema.parse(JSON.parse(rawConfig))
+} catch (e) {
+  console.warn("Failed to read config.json, using default config:", e)
+  config = defaultConfig
+}
+
+export { config }

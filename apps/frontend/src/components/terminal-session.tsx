@@ -1,6 +1,6 @@
 import { XTerm } from "@pablo-lion/xterm-react"
 import { FitAddon } from "@xterm/addon-fit"
-import { useEffect, useMemo, useRef } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react"
 import { getWorkerTerminalUrl } from "../lib/worker-urls"
 
 type TerminalSessionProps = {
@@ -60,12 +60,20 @@ export function TerminalSession({
   const isActiveRef = useRef(isActive)
   const containerRef = useRef<HTMLDivElement | null>(null)
 
+  const safeFit = useCallback(() => {
+    try {
+      fitAddon.fit()
+    } catch {
+      // fit() throws when the terminal element has zero dimensions (e.g. display:none)
+    }
+  }, [fitAddon])
+
   const terminalUrl = useMemo(
     () => getWorkerTerminalUrl(port, command),
     [command, port],
   )
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     isActiveRef.current = isActive
   }, [isActive])
 
@@ -77,7 +85,7 @@ export function TerminalSession({
       const xterm = xtermRef.current
       if (socket.readyState !== WebSocket.OPEN || !xterm?.terminal) return
 
-      fitAddon.fit()
+      safeFit()
       const { cols, rows } = xterm.terminal
       socket.send(JSON.stringify({ cols, rows, type: "resize" }))
     }
@@ -107,7 +115,6 @@ export function TerminalSession({
 
     const resizeObserver = new ResizeObserver(() => {
       if (isActiveRef.current) {
-        fitAddon.fit()
         sendResize()
       }
     })
@@ -117,7 +124,7 @@ export function TerminalSession({
     }
 
     requestAnimationFrame(() => {
-      fitAddon.fit()
+      safeFit()
       if (isActiveRef.current) sendResize()
     })
 
@@ -126,13 +133,13 @@ export function TerminalSession({
       socket.close()
       socketRef.current = null
     }
-  }, [terminalUrl, fitAddon])
+  }, [terminalUrl, fitAddon, safeFit])
 
   useEffect(() => {
     if (!isActive) return
 
     requestAnimationFrame(() => {
-      fitAddon.fit()
+      safeFit()
       xtermRef.current?.focus()
 
       const socket = socketRef.current
@@ -143,7 +150,7 @@ export function TerminalSession({
       const { cols, rows } = xterm.terminal
       socket.send(JSON.stringify({ cols, rows, type: "resize" }))
     })
-  }, [isActive, fitAddon])
+  }, [isActive, safeFit])
 
   const handleData = (data: string) => {
     const socket = socketRef.current
