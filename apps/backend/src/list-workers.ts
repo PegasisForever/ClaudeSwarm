@@ -166,6 +166,10 @@ async function loadWorkers(): Promise<WorkerInfo[]> {
   )
 }
 
+export function clearWorkersCache() {
+  workersCache.fetchedAt = 0
+}
+
 export async function listWorkers() {
   if (isCacheFresh()) {
     return workersCache.data

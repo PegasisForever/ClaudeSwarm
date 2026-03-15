@@ -57,7 +57,7 @@ export function WorkerSidebar({ presets, workers }: WorkerSidebarProps) {
       <aside className="h-screen w-[20rem] shrink-0 bg-[#282828] p-3">
         <div className="bg-[#353535] rounded-lg h-full">
           <div className="flex items-center justify-between px-4 py-4">
-            <h1 className="text-default-500 text-xs font-semibold tracking-[0.3em] uppercase">
+            <h1 className="text-default-600 text-xs font-semibold tracking-[0.4em] uppercase">
               ClaudeSwarm
             </h1>
             <Button

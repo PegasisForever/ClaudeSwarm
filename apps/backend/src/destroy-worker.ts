@@ -1,3 +1,4 @@
+import { clearWorkersCache } from "./list-workers"
 import { findManagedContainerByPort } from "./worker-container"
 
 export async function destroyWorkerContainer(port: number) {
@@ -8,4 +9,5 @@ export async function destroyWorkerContainer(port: number) {
   }
 
   await container.remove({ force: true })
+  clearWorkersCache()
 }

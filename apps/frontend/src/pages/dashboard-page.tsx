@@ -19,6 +19,7 @@ export function DashboardPage() {
     gcTime: Number.POSITIVE_INFINITY,
     staleTime: Number.POSITIVE_INFINITY,
   })
+  const destroyWorker = trpc.destroyWorker.useMutation()
   const [recentPorts, setRecentPorts] = useState<number[]>([])
   const [prevActivePort, setPrevActivePort] = useState<number | undefined>()
 
@@ -45,20 +46,18 @@ export function DashboardPage() {
     return "unloaded"
   }
 
-  const handleWorkerDestroyed = (port: number) => {
+  const handleDestroyWorker = async (port: number) => {
+    await destroyWorker.mutateAsync({ port })
+    await workersQuery.refetch()
+
     setRecentPorts((prev) => prev.filter((p) => p !== port))
-    if (activePort === port) {
-      void navigate("/")
-    }
+    void navigate("/")
   }
 
   return (
     <>
-      <div className="flex min-h-screen bg-background text-foreground">
-        <WorkerSidebar
-          presets={presets}
-          workers={workers}
-        />
+      <div className="bg-background text-foreground flex min-h-screen">
+        <WorkerSidebar presets={presets} workers={workers} />
 
         <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
           <div className="relative min-h-0 flex-1 overflow-hidden">
@@ -66,15 +65,15 @@ export function DashboardPage() {
               workers.map((worker) => (
                 <WorkerWorkspace
                   key={worker.port}
-                  onWorkerDestroyed={handleWorkerDestroyed}
+                  onDestroyWorker={handleDestroyWorker}
                   state={getWorkerState(worker.port)}
                   worker={worker}
                 />
               ))
             ) : (
-              <div className="flex h-full items-center justify-center px-6 bg-[#282828]">
+              <div className="flex h-full items-center justify-center bg-[#282828] px-6">
                 <div className="max-w-lg text-center">
-                  <p className="text-xs uppercase tracking-[0.26em] text-default-500">
+                  <p className="text-default-500 text-xs tracking-[0.26em] uppercase">
                     Nothing selected
                   </p>
                 </div>
@@ -83,7 +82,6 @@ export function DashboardPage() {
           </div>
         </main>
       </div>
-
     </>
   )
 }

@@ -21,7 +21,6 @@ import {
   readStoredString,
   writeStoredString,
 } from "../lib/storage"
-import { trpc } from "../trpc"
 import { TerminalSession } from "./terminal-session"
 import { getWorkerIframeUrl } from "../lib/worker-urls"
 
@@ -34,7 +33,7 @@ const terminalHeightAtom = atomWithStorage(
 type WorkerWorkspaceState = "active" | "cached" | "unloaded"
 
 type WorkerWorkspaceProps = {
-  onWorkerDestroyed: (port: number) => void
+  onDestroyWorker: (port: number) => Promise<void>
   state: WorkerWorkspaceState
   worker: WorkerInfo
 }
@@ -71,7 +70,7 @@ const terminalIcons: Record<TerminalName, typeof IconCode> = {
 }
 
 export function WorkerWorkspace({
-  onWorkerDestroyed,
+  onDestroyWorker,
   state,
   worker,
 }: WorkerWorkspaceProps) {
@@ -79,19 +78,21 @@ export function WorkerWorkspace({
   const shellRef = useRef<HTMLDivElement | null>(null)
   const [terminalHeight, setTerminalHeight] = useAtom(terminalHeightAtom)
   const [destroyModalOpen, setDestroyModalOpen] = useState(false)
+  const [isDestroying, setIsDestroying] = useState(false)
   const [activeTerminal, setActiveTerminal] = useState<TerminalName>(() => {
     const storedTerminal = readStoredString(getTerminalSelectionKey(workerPort))
     return storedTerminal === "terminal" ? "terminal" : "claude"
   })
 
-  const utils = trpc.useUtils()
-  const destroyWorker = trpc.destroyWorker.useMutation({
-    onSuccess: async () => {
+  const handleDestroy = async () => {
+    setIsDestroying(true)
+    try {
+      await onDestroyWorker(workerPort)
+    } finally {
+      setIsDestroying(false)
       setDestroyModalOpen(false)
-      onWorkerDestroyed(workerPort)
-      await utils.workers.invalidate()
-    },
-  })
+    }
+  }
 
   useEffect(() => {
     writeStoredString(getTerminalSelectionKey(workerPort), activeTerminal)
@@ -168,8 +169,8 @@ export function WorkerWorkspace({
                 </Button>
                 <Button
                   color="danger"
-                  isLoading={destroyWorker.isPending}
-                  onPress={() => destroyWorker.mutate({ port: workerPort })}
+                  isLoading={isDestroying}
+                  onPress={() => void handleDestroy()}
                   variant="flat"
                 >
                   Destroy
