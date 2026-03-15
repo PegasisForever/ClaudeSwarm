@@ -65,12 +65,17 @@ Inside the image:
 
 Run the container manually:
 
-```bash
-docker run --rm -p 3000:3000 claudeswarm-monorepo
-```
 
 ## Notes
 
 - The backend uses [`trpc-bun-adapter`](https://github.com/cah4a/trpc-bun-adapter).
 - The frontend uses a relative tRPC URL (`/api/trpc`), so browser requests go through the backend in both development and production.
 - In production, the backend serves the built frontend and returns the SPA shell for browser navigation requests.
+
+## Start
+
+```bash
+docker run -d -e PORT=14000 --network host -v /var/run/docker.sock:/var/run/docker.sock pegasis0/claude-swarm:latest
+```
+
+And navigate to `http://localhost:14000` to access the frontend.

@@ -4,10 +4,10 @@ WORKDIR /app
 
 COPY . .
 
-RUN bun install --frozen-lockfile
+RUN bun install
 RUN bun run build:packages
 
-FROM dhi.io/bun:1-alpine3.22 AS runtime
+FROM oven/bun:1 AS runtime
 
 WORKDIR /app
 
