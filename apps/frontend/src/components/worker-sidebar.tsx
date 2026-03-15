@@ -18,7 +18,7 @@ function WorkerItem({ worker }: { worker: WorkerInfo }) {
   return (
     <Button
       as={Link}
-      className={`relative h-auto w-full flex-col items-start rounded-none px-4 py-3 text-left gap-0 ${
+      className={`relative h-auto w-full flex-col items-start gap-0 rounded-none px-4 py-3 text-left ${
         isActive ? "bg-gray-700" : ""
       }`}
       to={`/${worker.port}`}
@@ -54,30 +54,32 @@ export function WorkerSidebar({ presets, workers }: WorkerSidebarProps) {
 
   return (
     <>
-      <aside className="h-screen w-[20rem] shrink-0 border-r border-gray-500 bg-gray-800">
-        <div className="flex items-center justify-between px-4 py-4">
-          <h1 className="text-default-500 text-xs font-semibold tracking-[0.3em] uppercase">
-            ClaudeSwarm
-          </h1>
-          <Button
-            isIconOnly
-            onPress={() => setIsAddModalOpen(true)}
-            size="sm"
-            variant="light"
-          >
-            <IconPlus size={18} />
-          </Button>
-        </div>
-        {workers.length > 0 ? (
-          <div className="flex flex-col">
-            {workers.map((worker) => (
-              <WorkerItem
-                key={`${worker.port}-${worker.title}`}
-                worker={worker}
-              />
-            ))}
+      <aside className="h-screen w-[20rem] shrink-0 bg-[#282828] p-3">
+        <div className="bg-[#353535] rounded-lg h-full">
+          <div className="flex items-center justify-between px-4 py-4">
+            <h1 className="text-default-500 text-xs font-semibold tracking-[0.3em] uppercase">
+              ClaudeSwarm
+            </h1>
+            <Button
+              isIconOnly
+              onPress={() => setIsAddModalOpen(true)}
+              size="sm"
+              variant="light"
+            >
+              <IconPlus size={18} />
+            </Button>
           </div>
-        ) : null}
+          {workers.length > 0 ? (
+            <div className="flex flex-col">
+              {workers.map((worker) => (
+                <WorkerItem
+                  key={`${worker.port}-${worker.title}`}
+                  worker={worker}
+                />
+              ))}
+            </div>
+          ) : null}
+        </div>
       </aside>
 
       <AddWorkerModal

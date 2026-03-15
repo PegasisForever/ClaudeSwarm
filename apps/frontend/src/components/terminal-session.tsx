@@ -1,7 +1,6 @@
-import { Button, Spinner } from "@heroui/react"
+import { XTerm } from "@pablo-lion/xterm-react"
 import { FitAddon } from "@xterm/addon-fit"
-import { Terminal } from "xterm"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef } from "react"
 import { getWorkerTerminalUrl } from "../lib/worker-urls"
 
 type TerminalSessionProps = {
@@ -11,52 +10,55 @@ type TerminalSessionProps = {
   title: string
 }
 
-type ConnectionState = "connecting" | "connected" | "closed" | "error"
-
 type TerminalMessage =
   | { type: "output"; data: string }
   | { type: "exit"; exitCode: number }
 
 const terminalTheme = {
   background: "#282828",
-  foreground: "#f5f3ff",
-  cursor: "#c084fc",
-  cursorAccent: "#09090f",
-  selectionBackground: "rgba(192, 132, 252, 0.24)",
-  black: "#0a0a12",
-  red: "#f31260",
-  green: "#17c964",
-  yellow: "#f5a524",
-  blue: "#7c3aed",
-  magenta: "#9353d3",
-  cyan: "#06b6d4",
-  white: "#f5f3ff",
-  brightBlack: "#71717a",
-  brightRed: "#fb7185",
-  brightGreen: "#4ade80",
-  brightYellow: "#facc15",
-  brightBlue: "#a78bfa",
-  brightMagenta: "#c084fc",
-  brightCyan: "#22d3ee",
+  foreground: "#f8f8f2",
+  cursor: "#f8f8f2",
+  cursorAccent: "#282a36",
+  selectionBackground: "#44475a",
+  black: "#21222c",
+  red: "#ff5555",
+  green: "#50fa7b",
+  yellow: "#f1fa8c",
+  blue: "#bd93f9",
+  magenta: "#ff79c6",
+  cyan: "#8be9fd",
+  white: "#f8f8f2",
+  brightBlack: "#6272a4",
+  brightRed: "#ff6e6e",
+  brightGreen: "#69ff94",
+  brightYellow: "#ffffa5",
+  brightBlue: "#d6acff",
+  brightMagenta: "#ff92df",
+  brightCyan: "#a4ffff",
   brightWhite: "#ffffff",
+} as const
+
+const terminalOptions = {
+  allowProposedApi: false,
+  convertEol: true,
+  cursorBlink: true,
+  fontFamily:
+    '"JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, monospace',
+  fontSize: 14,
+  lineHeight: 1.1,
+  theme: terminalTheme,
 } as const
 
 export function TerminalSession({
   command,
   isActive,
   port,
-  title,
 }: TerminalSessionProps) {
-  const containerRef = useRef<HTMLDivElement | null>(null)
-  const terminalRef = useRef<Terminal | null>(null)
-  const fitAddonRef = useRef<FitAddon | null>(null)
+  const xtermRef = useRef<InstanceType<typeof XTerm> | null>(null)
+  const fitAddon = useMemo(() => new FitAddon(), [])
   const socketRef = useRef<WebSocket | null>(null)
-  const cleanupRef = useRef(false)
   const isActiveRef = useRef(isActive)
-  const [connectionState, setConnectionState] =
-    useState<ConnectionState>("connecting")
-  const [reconnectCount, setReconnectCount] = useState(0)
-  const [exitCode, setExitCode] = useState<number | null>(null)
+  const containerRef = useRef<HTMLDivElement | null>(null)
 
   const terminalUrl = useMemo(
     () => getWorkerTerminalUrl(port, command),
@@ -68,55 +70,19 @@ export function TerminalSession({
   }, [isActive])
 
   useEffect(() => {
-    const container = containerRef.current
-
-    if (!container) {
-      return
-    }
-
-    cleanupRef.current = false
-
-    const terminal = new Terminal({
-      allowProposedApi: false,
-      convertEol: true,
-      cursorBlink: true,
-      fontFamily:
-        '"JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, monospace',
-      fontSize: 13,
-      lineHeight: 1.45,
-      theme: terminalTheme,
-    })
-
-    const fitAddon = new FitAddon()
-    terminal.loadAddon(fitAddon)
-    terminal.open(container)
-    terminal.focus()
-    terminalRef.current = terminal
-    fitAddonRef.current = fitAddon
-
-    const sendResize = () => {
-      const socket = socketRef.current
-
-      if (socket?.readyState !== WebSocket.OPEN) {
-        return
-      }
-
-      fitAddon.fit()
-      socket.send(
-        JSON.stringify({
-          cols: terminal.cols,
-          rows: terminal.rows,
-          type: "resize",
-        }),
-      )
-    }
-
     const socket = new WebSocket(terminalUrl)
     socketRef.current = socket
 
+    const sendResize = () => {
+      const xterm = xtermRef.current
+      if (socket.readyState !== WebSocket.OPEN || !xterm?.terminal) return
+
+      fitAddon.fit()
+      const { cols, rows } = xterm.terminal
+      socket.send(JSON.stringify({ cols, rows, type: "resize" }))
+    }
+
     socket.addEventListener("open", () => {
-      setConnectionState("connected")
-      terminal.writeln(`\u001b[90mconnected to ${title}\u001b[0m`)
       requestAnimationFrame(sendResize)
     })
 
@@ -125,138 +91,79 @@ export function TerminalSession({
         const message = JSON.parse(String(event.data)) as TerminalMessage
 
         if (message.type === "output") {
-          terminal.write(message.data)
+          xtermRef.current?.write(message.data)
           return
         }
 
         if (message.type === "exit") {
-          setExitCode(message.exitCode)
-          setConnectionState("closed")
-          terminal.writeln(
+          xtermRef.current?.writeln(
             `\r\n\u001b[31m[session exited with code ${message.exitCode}]\u001b[0m`,
           )
         }
       } catch {
-        terminal.writeln("\r\n\u001b[31m[invalid terminal message]\u001b[0m")
+        xtermRef.current?.writeln("\r\n\u001b[31m[invalid terminal message]\u001b[0m")
       }
-    })
-
-    socket.addEventListener("error", () => {
-      setConnectionState("error")
-    })
-
-    socket.addEventListener("close", () => {
-      if (cleanupRef.current) {
-        return
-      }
-
-        setConnectionState((currentState) =>
-          currentState === "connected" ? "closed" : currentState,
-        )
-    })
-
-    const dataDisposable = terminal.onData((data) => {
-      if (socket.readyState !== WebSocket.OPEN) {
-        return
-      }
-
-      socket.send(JSON.stringify({ data, type: "input" }))
     })
 
     const resizeObserver = new ResizeObserver(() => {
       if (isActiveRef.current) {
+        fitAddon.fit()
         sendResize()
       }
     })
 
-    resizeObserver.observe(container)
+    if (containerRef.current) {
+      resizeObserver.observe(containerRef.current)
+    }
 
     requestAnimationFrame(() => {
       fitAddon.fit()
-
-      if (isActiveRef.current) {
-        sendResize()
-      }
+      if (isActiveRef.current) sendResize()
     })
 
     return () => {
-      cleanupRef.current = true
-      dataDisposable.dispose()
       resizeObserver.disconnect()
       socket.close()
       socketRef.current = null
-      terminal.dispose()
-      terminalRef.current = null
-      fitAddonRef.current = null
     }
-  }, [reconnectCount, terminalUrl, title])
+  }, [terminalUrl, fitAddon])
 
   useEffect(() => {
-    if (!isActive) {
-      return
-    }
+    if (!isActive) return
 
     requestAnimationFrame(() => {
-      fitAddonRef.current?.fit()
-      terminalRef.current?.focus()
+      fitAddon.fit()
+      xtermRef.current?.focus()
 
       const socket = socketRef.current
-      const terminal = terminalRef.current
+      const xterm = xtermRef.current
 
-      if (!terminal || socket?.readyState !== WebSocket.OPEN) {
-        return
-      }
+      if (!xterm?.terminal || socket?.readyState !== WebSocket.OPEN) return
 
-      socket.send(
-        JSON.stringify({
-          cols: terminal.cols,
-          rows: terminal.rows,
-          type: "resize",
-        }),
-      )
+      const { cols, rows } = xterm.terminal
+      socket.send(JSON.stringify({ cols, rows, type: "resize" }))
     })
-  }, [isActive])
+  }, [isActive, fitAddon])
 
-  const showOverlay = connectionState !== "connected"
+  const handleData = (data: string) => {
+    const socket = socketRef.current
+    if (socket?.readyState !== WebSocket.OPEN) return
+    socket.send(JSON.stringify({ data, type: "input" }))
+  }
 
   return (
     <div className={isActive ? "absolute inset-0" : "absolute inset-0 hidden"}>
-      <div className="relative h-full w-full">
-        <div className="h-full w-full overflow-hidden [&_.xterm-viewport]:!overflow-y-auto [&_.xterm]:h-full [&_.xterm]:px-4 [&_.xterm]:py-3" ref={containerRef} />
-        {showOverlay ? (
-          <div className="absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-            <div className="flex max-w-sm flex-col items-center gap-3 px-6 text-center">
-              {connectionState === "connecting" ? (
-                <>
-                  <Spinner color="secondary" size="sm" />
-                  <p className="text-sm text-default-500">
-                    Connecting to the {title} session.
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p className="text-sm text-default-400">
-                    {exitCode === null
-                      ? `The ${title} session is unavailable.`
-                      : `The ${title} session exited with code ${exitCode}.`}
-                  </p>
-                  <Button
-                    color="secondary"
-                    onPress={() => {
-                      setConnectionState("connecting")
-                      setExitCode(null)
-                      setReconnectCount((count) => count + 1)
-                    }}
-                    size="sm"
-                    variant="flat"
-                  >
-                    Reconnect
-                  </Button>
-                </>
-              )}
-            </div>
-          </div>
-        ) : null}
+      <div
+        ref={containerRef}
+        className="h-full w-full overflow-hidden bg-[#282828] pt-2"
+      >
+        <XTerm
+          ref={xtermRef}
+          className="h-full w-full"
+          options={terminalOptions}
+          addons={[fitAddon]}
+          onData={handleData}
+        />
       </div>
     </div>
   )

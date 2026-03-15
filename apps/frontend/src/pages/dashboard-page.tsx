@@ -11,7 +11,6 @@ const EMPTY_WORKERS: WorkerInfo[] = []
 const EMPTY_PRESETS: PresetInfo[] = []
 
 export function DashboardPage() {
-  const utils = trpc.useUtils()
   const navigate = useNavigate()
   const { port: portParam } = useParams<{ port: string }>()
   const activePort = portParam ? Number(portParam) : undefined
@@ -48,24 +47,10 @@ export function DashboardPage() {
     return "unloaded"
   }
 
-  const destroyWorker = trpc.destroyWorker.useMutation({
-    onSuccess: async () => {
-      await utils.workers.invalidate()
-    },
-  })
-
-  const handleDestroyWorker = (worker: WorkerInfo) => {
-    const confirmed = window.confirm(`Destroy "${worker.title}" on port ${worker.port}?`)
-
-    if (!confirmed) {
-      return
-    }
-
-    recentPortsRef.current = recentPortsRef.current.filter((p) => p !== worker.port)
-    destroyWorker.mutate({ port: worker.port })
-
-    if (activePort === worker.port) {
-      navigate("/")
+  const handleWorkerDestroyed = (port: number) => {
+    recentPortsRef.current = recentPortsRef.current.filter((p) => p !== port)
+    if (activePort === port) {
+      void navigate("/")
     }
   }
 
@@ -76,7 +61,6 @@ export function DashboardPage() {
           presets={presets}
           workers={workers}
         />
-        <Divider orientation="vertical" />
 
         <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
           <div className="relative min-h-0 flex-1 overflow-hidden">
@@ -84,9 +68,9 @@ export function DashboardPage() {
               workers.map((worker) => (
                 <WorkerWorkspace
                   key={worker.port}
-                  onDestroyWorker={() => handleDestroyWorker(worker)}
+                  onWorkerDestroyed={handleWorkerDestroyed}
                   state={getWorkerState(worker.port)}
-                  workerPort={worker.port}
+                  worker={worker}
                 />
               ))
             ) : (
