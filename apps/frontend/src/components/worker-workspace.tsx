@@ -13,7 +13,7 @@ import {
   useEffect,
   useRef,
   useState,
-  type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
 } from "react"
 import type { WorkerInfo } from "../lib/api-types"
 import {
@@ -97,7 +97,7 @@ export function WorkerWorkspace({
     writeStoredString(getTerminalSelectionKey(workerPort), activeTerminal)
   }, [activeTerminal, workerPort])
 
-  const beginResize = (event: ReactMouseEvent<HTMLButtonElement>) => {
+  const beginResize = (event: ReactPointerEvent<HTMLDivElement>) => {
     const shell = shellRef.current
 
     if (!shell) {
@@ -105,6 +105,9 @@ export function WorkerWorkspace({
     }
 
     event.preventDefault()
+    const target = event.currentTarget
+    const pointerId = event.pointerId
+    target.setPointerCapture(pointerId)
 
     const startHeight = terminalHeight
     const startY = event.clientY
@@ -114,7 +117,7 @@ export function WorkerWorkspace({
       shellRect.height - MIN_VIEWPORT_HEIGHT,
     )
 
-    const handlePointerMove = (moveEvent: globalThis.MouseEvent) => {
+    const handlePointerMove = (moveEvent: globalThis.PointerEvent) => {
       const delta = startY - moveEvent.clientY
       setTerminalHeight(
         clamp(startHeight + delta, MIN_TERMINAL_HEIGHT, maximumHeight),
@@ -122,12 +125,15 @@ export function WorkerWorkspace({
     }
 
     const stopResize = () => {
-      window.removeEventListener("mousemove", handlePointerMove)
-      window.removeEventListener("mouseup", stopResize)
+      target.removeEventListener("pointermove", handlePointerMove)
+      target.removeEventListener("pointerup", stopResize)
+      target.removeEventListener("pointercancel", stopResize)
+      target.releasePointerCapture(pointerId)
     }
 
-    window.addEventListener("mousemove", handlePointerMove)
-    window.addEventListener("mouseup", stopResize)
+    target.addEventListener("pointermove", handlePointerMove)
+    target.addEventListener("pointerup", stopResize)
+    target.addEventListener("pointercancel", stopResize)
   }
 
   if (state === "unloaded") {
@@ -178,76 +184,71 @@ export function WorkerWorkspace({
         className={`absolute inset-0 flex flex-col ${hiddenClass}`}
         ref={shellRef}
       >
-      <iframe
-        allow="clipboard-read; clipboard-write"
-        className="h-full w-full border-0 bg-[#282828]"
-        src={getWorkerIframeUrl(workerPort)}
-      />
+        <iframe
+          allow="clipboard-read; clipboard-write"
+          className="h-full w-full border-0 bg-[#282828]"
+          src={getWorkerIframeUrl(workerPort)}
+        />
 
-      <div className="shrink-0">
-        <button
-          aria-label="Resize terminal area"
-          className="text-default-500 hover:text-default-300 flex h-6 w-full items-center justify-center transition"
-          onMouseDown={beginResize}
-          type="button"
+        <div className="relative shrink-0 border-t border-gray-500">
+          <div
+            onPointerDown={beginResize}
+            className="absolute -top-2 z-10 h-4 w-full cursor-ns-resize"
+          />
+        </div>
+
+        <div
+          className="relative flex shrink-0 overflow-hidden"
+          style={{ height: `${terminalHeight}px` }}
         >
-          <span className="bg-divider h-px w-full" />
-          <span className="bg-default-500 text-background absolute rounded-full px-2 py-1 text-[10px] tracking-[0.2em] uppercase">
-            drag
-          </span>
-        </button>
-      </div>
+          <div className="bg-[#282828] p-3 pl-0">
+            <div className="flex h-full flex-col items-center justify-between rounded-lg bg-[#353535] p-1">
+              <div className="flex flex-col items-center gap-1">
+                {terminalSessions.map((session) => {
+                  const isSelected = activeTerminal === session.value
+                  const Icon = terminalIcons[session.value]
 
-      <div
-        className="relative flex shrink-0 overflow-hidden"
-        style={{ height: `${terminalHeight}px` }}
-      >
-        <div className=" bg-[#282828] p-3 pl-0">
-          <div className="h-full flex flex-col items-center justify-between bg-[#353535] rounded-lg p-1">
-            <div className="flex flex-col items-center gap-1">
-              {terminalSessions.map((session) => {
-                const isSelected = activeTerminal === session.value
-                const Icon = terminalIcons[session.value]
-
-                return (
-                  <Button
-                    className={isSelected ? "text-primary" : "text-default-500"}
-                    isIconOnly
-                    key={session.value}
-                    onPress={() => setActiveTerminal(session.value)}
-                    size="sm"
-                    variant="light"
-                  >
-                    <Icon size={18} />
-                  </Button>
-                )
-              })}
+                  return (
+                    <Button
+                      className={
+                        isSelected ? "text-primary" : "text-default-500"
+                      }
+                      isIconOnly
+                      key={session.value}
+                      onPress={() => setActiveTerminal(session.value)}
+                      size="sm"
+                      variant="light"
+                    >
+                      <Icon size={18} />
+                    </Button>
+                  )
+                })}
+              </div>
+              <Button
+                className="text-default-500"
+                color="danger"
+                isIconOnly
+                onPress={() => setDestroyModalOpen(true)}
+                size="sm"
+                variant="light"
+              >
+                <IconTrash size={18} />
+              </Button>
             </div>
-            <Button
-              className="text-default-500"
-              color="danger"
-              isIconOnly
-              onPress={() => setDestroyModalOpen(true)}
-              size="sm"
-              variant="light"
-            >
-              <IconTrash size={18} />
-            </Button>
+          </div>
+          <div className="relative min-w-0 flex-1">
+            {terminalSessions.map((session) => (
+              <TerminalSession
+                command={session.command}
+                isActive={activeTerminal === session.value}
+                key={session.value}
+                port={workerPort}
+                title={session.label}
+              />
+            ))}
           </div>
         </div>
-        <div className="relative min-w-0 flex-1">
-          {terminalSessions.map((session) => (
-            <TerminalSession
-              command={session.command}
-              isActive={activeTerminal === session.value}
-              key={session.value}
-              port={workerPort}
-              title={session.label}
-            />
-          ))}
-        </div>
-      </div>
-    </section>
+      </section>
     </>
   )
 }
