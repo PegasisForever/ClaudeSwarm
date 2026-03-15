@@ -152,7 +152,7 @@ export function TerminalSession({
   }
 
   return (
-    <div className={isActive ? "absolute inset-0" : "absolute inset-0 hidden"}>
+    <div className={isActive ? "absolute inset-0 pointer-events-auto opacity-100" : "absolute inset-0 pointer-events-none opacity-0"}>
       <div
         ref={containerRef}
         className="h-full w-full overflow-hidden bg-[#282828] pt-2"

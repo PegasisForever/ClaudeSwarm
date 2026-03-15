@@ -39,11 +39,11 @@ function isCacheFresh() {
   return Date.now() - workersCache.fetchedAt <= WORKERS_CACHE_TTL_MS
 }
 
-function createMonitorClient(port: number) {
+function createMonitorClient(ipAddress: string, port: number) {
   return createTRPCProxyClient<MonitorRouterContract>({
     links: [
       httpBatchLink({
-        url: `http://127.0.0.1:${port}${MONITOR_TRPC_URL_PATH}`,
+        url: `http://${ipAddress}:${port}${MONITOR_TRPC_URL_PATH}`,
       }),
     ],
   })
@@ -90,17 +90,10 @@ function getDurationS(
 
 async function getContainerMonitorStatus(
   container: Docker.ContainerInspectInfo,
-  port: number | undefined,
 ): Promise<MonitorStatusOutput | { status: "error" | "stopped" }> {
   if (!container.State.Running) {
     return {
       status: "stopped" as const,
-    }
-  }
-
-  if (port === undefined) {
-    return {
-      status: "error" as const,
     }
   }
 
@@ -113,7 +106,12 @@ async function getContainerMonitorStatus(
   }
 
   try {
-    const client = createMonitorClient(port)
+    const network = Object.values(container.NetworkSettings.Networks)[0]
+    if (!network) {
+      throw new Error("No network found for container")
+    }
+
+    const client = createMonitorClient(network.IPAddress, 51300)
     return await withTimeout(
       () => client.status.query(),
       MONITOR_QUERY_TIMEOUT_MS,
@@ -146,7 +144,7 @@ async function loadWorkers(): Promise<WorkerInfo[]> {
     workerContainers.map(async (container) => {
       const inspection = await inspectWorkerContainer(container.Id)
       const port = readPublishedPort(inspection)
-      const monitorStatus = await getContainerMonitorStatus(inspection, port)
+      const monitorStatus = await getContainerMonitorStatus(inspection)
 
       return {
         title:

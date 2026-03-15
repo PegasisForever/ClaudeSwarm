@@ -37,10 +37,13 @@ function WorkerItem({ worker }: { worker: WorkerInfo }) {
       <p className="mt-2 text-base text-wrap">{worker.title}</p>
       {worker.pr ? (
         <a
-          className="mt-1"
+          className="mt-1 font-mono underline underline-offset-4 text-gray-300"
           href={worker.pr.link}
           rel="noreferrer"
           target="_blank"
+          onClick={(e) => {
+            e.stopPropagation()
+          }}
         >
           {worker.pr.baseBranch} ← #{worker.pr.number}
         </a>
@@ -55,7 +58,7 @@ export function WorkerSidebar({ presets, workers }: WorkerSidebarProps) {
   return (
     <>
       <aside className="h-screen w-[20rem] shrink-0 bg-[#282828] p-3">
-        <div className="bg-[#353535] rounded-lg h-full">
+        <div className="h-full rounded-lg bg-[#353535]">
           <div className="flex items-center justify-between px-4 py-4">
             <h1 className="text-default-600 text-xs font-semibold tracking-[0.4em] uppercase">
               ClaudeSwarm

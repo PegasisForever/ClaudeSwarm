@@ -111,17 +111,6 @@ export const appRouter = router({
         })
       }
     }),
-  logPage: publicProcedure
-    .input(
-      z.object({
-        page: z.enum(["home", "about"]),
-      }),
-    )
-    .mutation(({ input }) => {
-      console.log(`[trpc] page button clicked: ${input.page}`)
-
-      return { ok: true }
-    }),
 })
 
 export type AppRouter = typeof appRouter

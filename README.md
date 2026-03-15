@@ -75,7 +75,7 @@ Run the container manually:
 ## Start
 
 ```bash
-docker run -d -e PORT=14000 --network host -v /var/run/docker.sock:/var/run/docker.sock pegasis0/claude-swarm:latest
+docker run -d -e PORT=14000 -p 14000:14000 -v /var/run/docker.sock:/var/run/docker.sock pegasis0/claude-swarm:latest
 ```
 
 And navigate to `http://localhost:14000` to access the frontend.
