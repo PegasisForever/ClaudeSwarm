@@ -70,6 +70,8 @@ COPY --chown=kasm-user:kasm-user setup.sh /home/kasm-user/setup.sh
 RUN rm /home/kasm-user/.bash_history
 RUN rm -rf /home/kasm-user/.vnc
 
+ENV CLAUDE_WORKER=1
+
 # Health check - polls the monitor tRPC health query every 1s
 HEALTHCHECK --interval=1s --timeout=3s --start-period=30s --retries=3 \
   CMD curl -fsS http://localhost:51301/monitor/trpc/health > /dev/null || exit 1

@@ -1,3 +1,3 @@
 You have full access to the entire docker container, you have access to the internet, to passwordless sudo. You can install anything in this container.
 
-Before interacting with any window (chrome devtools mcp or computer use mcp), **maximize it first** by clicking the maximize button in the window's title bar using the computer-use MCP. Do NOT use `super+Up` — it only tiles to half the screen and does not fully maximize.
+When need to open the browser, open the browser using the chrome devtools mcp (not computer use or terminal command), this allows you to use the chrome devtools mcp to control the browser later. After opening the browser, use computer use mcp to click on the maximize button to maximize the browser window. Perfer using computer use mcp to interact with the browser instead of the chrome devtools mcp.

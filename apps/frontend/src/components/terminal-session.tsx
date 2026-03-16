@@ -151,6 +151,13 @@ export function TerminalSession({
     socket.send(JSON.stringify({ data, type: "input" }))
   }
 
+  const handleSelectionChange = () => {
+    const selection = xtermRef.current?.getSelection()
+    if (selection) {
+      void navigator.clipboard.writeText(selection)
+    }
+  }
+
   return (
     <div className={isActive ? "absolute inset-0 pointer-events-auto opacity-100" : "absolute inset-0 pointer-events-none opacity-0"}>
       <div
@@ -163,6 +170,7 @@ export function TerminalSession({
           options={terminalOptions}
           addons={[fitAddon]}
           onData={handleData}
+          onSelectionChange={handleSelectionChange}
         />
       </div>
     </div>

@@ -100,7 +100,6 @@ export function AddWorkerModal({
                 isRequired
                 label="Title"
                 onValueChange={setTitle}
-                placeholder="Frontend QA, bug triage, release check..."
                 value={title}
               />
               <Select
