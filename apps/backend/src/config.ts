@@ -18,7 +18,13 @@ const defaultConfig: z.infer<typeof ConfigSchema> = {
       name: "default",
       imageTag: "pegasis0/claude-worker:latest",
       presetEnv: {},
-      requiredEnv: ["GITHUB_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN", "CLAUDE_PROMPT"],
+      requiredEnv: [
+        "DISCORD_USER_ID",
+        "DISCORD_WEBHOOK_URL",
+        "GITHUB_TOKEN",
+        "CLAUDE_CODE_OAUTH_TOKEN",
+        "CLAUDE_PROMPT",
+      ],
     },
   ],
 }

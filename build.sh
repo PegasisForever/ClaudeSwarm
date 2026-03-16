@@ -7,3 +7,4 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT_DIR"
 
 docker build -t pegasis0/claude-swarm:latest .
+docker push pegasis0/claude-swarm:latest

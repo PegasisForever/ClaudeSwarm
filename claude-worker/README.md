@@ -28,11 +28,13 @@ This image (`pegasis0/claude-worker:latest`) is intended to be used as a **start
 
 ## Environment Variables
 
-| Variable | Description |
-|----------|-------------|
+| Variable                  | Description                                                                    |
+| ------------------------- | ------------------------------------------------------------------------------ |
 | `CLAUDE_CODE_OAUTH_TOKEN` | OAuth token for authenticating with Claude Code, get from `claude setup-token` |
-| `GITHUB_TOKEN` | GitHub personal access token for repository operations |
-| `CLAUDE_PROMPT` | Initial prompt to send to Claude Code on startup |
+| `GITHUB_TOKEN`            | GitHub personal access token for repository operations                         |
+| `CLAUDE_PROMPT`           | Initial prompt to send to Claude Code on startup                               |
+| `DISCORD_USER_ID`         | Discord user ID to notify on build completion                                  |
+| `DISCORD_WEBHOOK_URL`     | Discord webhook URL to send notifications to                                   |
 
 ## Container Initialization
 
@@ -56,6 +58,7 @@ The monitor exposes tRPC HTTP queries under `/monitor/trpc/*` and a terminal web
 Returns the current state of the Claude Code session as a tRPC query response.
 
 **Response:**
+
 ```json
 {
   "result": {
@@ -73,12 +76,13 @@ Returns the current state of the Claude Code session as a tRPC query response.
 }
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `status` | `"idle" \| "waiting" \| "working"` | Claude session state |
-| `pr` | `object \| undefined` | Open PR for the current branch, if one can be resolved with `gh pr view` |
+| Field    | Type                               | Description                                                              |
+| -------- | ---------------------------------- | ------------------------------------------------------------------------ |
+| `status` | `"idle" \| "waiting" \| "working"` | Claude session state                                                     |
+| `pr`     | `object \| undefined`              | Open PR for the current branch, if one can be resolved with `gh pr view` |
 
 **Status values:**
+
 - `idle` — Claude is not running (bash prompt visible)
 - `waiting` — Claude is waiting for user input
 - `working` — Claude is actively processing
@@ -88,6 +92,7 @@ Returns the current state of the Claude Code session as a tRPC query response.
 Health check query used by Docker.
 
 **Response:**
+
 ```json
 {
   "result": {
@@ -114,12 +119,14 @@ WebSocket endpoint for interactive terminal access via xterm.js. Connects to a P
 **Message Protocol:**
 
 Client → Server:
+
 ```json
 { "type": "input", "data": "ls\n" }
 { "type": "resize", "cols": 120, "rows": 40 }
 ```
 
 Server → Client:
+
 ```json
 { "type": "output", "data": "terminal output here" }
 { "type": "exit", "exitCode": 0 }
