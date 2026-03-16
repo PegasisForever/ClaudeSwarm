@@ -21,6 +21,6 @@ ENV FRONTEND_DIST=/app/apps/frontend/dist
 EXPOSE 3000
 
 HEALTHCHECK --interval=1s --timeout=1s --start-period=1s --retries=3 \
-  CMD ["bun", "-e", "const response = await fetch('http://127.0.0.1:3000/api/trpc/health'); if (!response.ok) throw new Error(`HTTP ${response.status}`)"]
+  CMD bun -e "const response = await fetch('http://127.0.0.1:${PORT}/api/trpc/health'); if (!response.ok) throw new Error('HTTP ' + response.status)"
 
 CMD ["bun", "/app/apps/backend/dist/index.js"]

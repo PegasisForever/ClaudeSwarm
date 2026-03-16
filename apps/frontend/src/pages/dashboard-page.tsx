@@ -1,10 +1,32 @@
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useNavigate, useParams } from "react-router"
 import { WorkerSidebar } from "../components/worker-sidebar"
 import { WorkerWorkspace } from "../components/worker-workspace"
+import type { WorkerInfo } from "../lib/api-types"
 import { trpc } from "../trpc"
 
-const MAX_CACHED_WORKSPACES = 3
+const MAX_CACHED_WORKSPACES = 6
+
+const WORKING_TO_NOTIFY: readonly string[] = ["idle", "waiting", "error"]
+
+function showWorkerTransitionNotification(
+  worker: WorkerInfo,
+  newStatus: string,
+  onNavigate: (port: number) => void,
+) {
+  if (!("Notification" in window) || Notification.permission !== "granted") return
+
+  const n = new Notification("Worker finished", {
+    body: `${worker.title} (${worker.preset}) is now ${newStatus}`,
+    tag: `worker-${worker.port}`,
+  })
+
+  n.onclick = () => {
+    window.focus()
+    n.close()
+    onNavigate(worker.port)
+  }
+}
 
 export function DashboardPage() {
   const navigate = useNavigate()
@@ -22,6 +44,39 @@ export function DashboardPage() {
   const destroyWorker = trpc.destroyWorker.useMutation()
   const [recentPorts, setRecentPorts] = useState<number[]>([])
   const [prevActivePort, setPrevActivePort] = useState<number | undefined>()
+  const prevStatusByPort = useRef<Map<number, string>>(new Map())
+
+  useEffect(() => {
+    if (!("Notification" in window)) return
+    if (Notification.permission === "default") {
+      void Notification.requestPermission()
+    }
+  }, [])
+
+  useEffect(() => {
+    const workers = workersQuery.data ?? []
+    const prev = prevStatusByPort.current
+
+    for (const worker of workers) {
+      const prevStatus = prev.get(worker.port)
+      prev.set(worker.port, worker.status)
+
+      if (
+        prevStatus === "working" &&
+        WORKING_TO_NOTIFY.includes(worker.status)
+      ) {
+        showWorkerTransitionNotification(worker, worker.status, (port) => {
+          void navigate(`/${port}`)
+        })
+      }
+    }
+
+    for (const port of prev.keys()) {
+      if (!workers.some((w) => w.port === port)) {
+        prev.delete(port)
+      }
+    }
+  }, [workersQuery.data, navigate])
 
   const workers = workersQuery.data ?? []
   const presets = presetsQuery.data ?? []

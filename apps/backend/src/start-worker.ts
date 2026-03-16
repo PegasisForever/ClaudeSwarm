@@ -9,6 +9,7 @@ import {
 } from "./worker-container"
 
 const SHARED_MEMORY_BYTES = 512 * 1024 * 1024
+const MEMORY_LIMIT_BYTES = 16 * 1024 * 1024 * 1024
 const HEALTH_POLL_INTERVAL_MS = 1_000
 const HEALTH_TIMEOUT_MS = 60_000
 
@@ -96,6 +97,9 @@ export async function startWorkerContainer({
         [WORKER_MONITOR_PORT]: [{ HostPort: "" }],
       },
       ShmSize: SHARED_MEMORY_BYTES,
+      Memory: MEMORY_LIMIT_BYTES,
+      CpuShares: 128,
+      BlkioWeight: 100,
       Privileged: true,
     },
     Labels: {
