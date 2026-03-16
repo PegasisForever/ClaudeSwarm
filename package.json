@@ -7,8 +7,7 @@
   ],
   "scripts": {
     "dev": "turbo run dev --parallel --continue",
-    "build": "docker build -t claudeswarm-monorepo .",
-    "build:packages": "turbo run build",
+    "build": "turbo run build",
     "format": "prettier --write .",
     "type-check-lint": "turbo run typecheck lint"
   },

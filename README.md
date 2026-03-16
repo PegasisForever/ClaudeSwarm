@@ -1,45 +1,13 @@
-# ClaudeSwarm Monorepo Template
-
-Full-stack Bun monorepo built with Turborepo.
-
-## Stack
-
-- Backend: Bun, `Bun.serve`, tRPC, TypeScript, `trpc-bun-adapter`
-- Frontend: Vite, React, React Router, TypeScript, Tailwind CSS v4
-- Tooling: Bun workspaces, Turborepo, Prettier, TypeScript, ESLint v9
+# ClaudeSwarm
 
 ## Structure
 
 ```text
 apps/
-  backend/
-  frontend/
-```
-
-The frontend imports `AppRouter` as a type directly from `@repo/backend/router`, which follows the tRPC recommendation to use `import type` from the server router module so nothing server-side is bundled into the client.
-
-## Template Behavior
-
-The frontend is intentionally minimal:
-
-- `/` renders a `Home` page
-- `/about` renders an `About` page
-- a small nav bar links between the two pages
-- each page has a title and a button
-
-Both buttons call the same tRPC mutation, `logPage`, with either `"home"` or `"about"`.
-
-The backend logs the clicked page with `console.log`.
-
-## Commands
-
-Run everything from the repository root:
-
-```bash
-bun run dev
-bun run build
-bun run format
-bun run type-check-lint
+  backend/       # backend server, manages life cycle of workers
+  frontend/      # frontend app, connects to backend
+  monitor/       # lightweight monitor daemon runs inside each worker
+claude-worker/   # base worker image, end user should build their own image on top of this
 ```
 
 ## Development
@@ -47,35 +15,51 @@ bun run type-check-lint
 `bun run dev` starts:
 
 - the backend on `http://127.0.0.1:3000`
-- the Vite dev server on `http://127.0.0.1:4100`
+- the Vite dev server on `http://127.0.0.1:4100` (do not access this directly)
 
-The backend owns the public app port and forwards non-API requests to Vite during development. API requests stay on the backend under `/api/trpc` and `/api/health`.
-
-React Router runs in the frontend, and the backend is set up to support SPA deep links like `/about`.
+The backend forwards vite dev server during development. Access the frontend at `http://localhost:3000`.
 
 ## Production Build
 
-`bun run build` builds a Docker image named `claudeswarm-monorepo`.
+`./build.sh [--push]`:
 
-Inside the image:
+- builds `monitor`
+- builds and pushes `pegasis0/claude-worker:latest` image with `monitor` daemon
+- builds `frontend` and `backend`
+- builds and pushes `pegasis0/claude-swarm:latest` image with `frontend` and `backend`
 
-- the frontend is built with Vite
-- the backend is bundled with Bun
-- the backend serves the built frontend files at runtime
+## Start Production Build
 
-Run the container manually:
-
-
-## Notes
-
-- The backend uses [`trpc-bun-adapter`](https://github.com/cah4a/trpc-bun-adapter).
-- The frontend uses a relative tRPC URL (`/api/trpc`), so browser requests go through the backend in both development and production.
-- In production, the backend serves the built frontend and returns the SPA shell for browser navigation requests.
-
-## Start
+### Docker CLI
 
 ```bash
-docker run -d -e PORT=14000 -p 14000:14000 -v /var/run/docker.sock:/var/run/docker.sock pegasis0/claude-swarm:latest
+docker run -d -e PORT=14000 -p 14000:14000 -v /var/run/docker.sock:/var/run/docker.sock -v ./config.json:/app/config.json pegasis0/claude-swarm:latest
 ```
 
 And navigate to `http://localhost:14000` to access the frontend.
+
+### Docker Compose
+
+```yaml
+services:
+  claudeswarm:
+    image: pegasis0/claude-swarm:latest
+    network_mode: bridge
+    ports:
+      - "14000:14000"
+    restart: unless-stopped
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "./config.json:/app/config.json"
+    environment:
+      - PORT=14000
+```
+
+And navigate to `http://localhost:14000` to access the frontend.
+
+## Configuration File
+
+An example configuration file is provided in [`/apps/backend/config.json`](./apps/backend/config.json).
+
+- `presetEnv` is a dictionary of predefined environment variables.
+- `requiredEnv` is an array of environment variables that must be set when starting a worker.

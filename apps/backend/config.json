@@ -3,9 +3,10 @@
     {
       "name": "default",
       "imageTag": "pegasis0/claude-worker:latest",
-      "presetEnv": {},
+      "presetEnv": {
+        "DISCORD_USER_ID": "591663117545635870"
+      },
       "requiredEnv": [
-        "DISCORD_USER_ID",
         "DISCORD_WEBHOOK_URL",
         "GITHUB_TOKEN",
         "CLAUDE_CODE_OAUTH_TOKEN",
