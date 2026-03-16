@@ -59,3 +59,21 @@ For end-user customization, the most important hook is `~/setup.sh`. Build your 
   - reverse proxies everything else to internal port `6901`
   
 You only need to expose the port `51300` to the outside world.
+
+## Run Standalone
+
+This container is supposed to be started by [`backend`](../apps/backend). However, you can run it standalone for development purposes.
+
+```bash
+docker run --rm -d \
+  --shm-size=512m \
+  -p 51300:51300 \
+  --privileged \
+  -e CLAUDE_CODE_OAUTH_TOKEN=sk-ant-xxx \
+  # more environment variables...
+  pegasis0/claude-worker:latest
+```
+
+Note: `--privileged` is required for Docker in Docker.
+
+After the container is running, you can access the desktop at `http://localhost:51300/monitor`.
