@@ -126,7 +126,7 @@ export async function getMonitorStatus(): Promise<MonitorInfo> {
         CLAUDE_SESSION_NAME,
       ])
 
-      if (paneResult.stdout.includes("esc to interrupt")) {
+      if (paneResult.stdout.includes("esc to interrupt") || paneResult.stdout.includes("(running)")) {
         status = "working"
       } else if (paneResult.stdout.includes("Type something.")) {
         status = "waiting"

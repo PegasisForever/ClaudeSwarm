@@ -20,3 +20,10 @@ export function getWorkerTerminalUrl(port: number, command: string) {
   url.searchParams.set("cmd", command)
   return url.toString()
 }
+
+export function getWorkerUploadUrl(port: number) {
+  const url = createWorkerUrl(port)
+  url.pathname = "/monitor/upload"
+  url.search = ""
+  return url.toString()
+}

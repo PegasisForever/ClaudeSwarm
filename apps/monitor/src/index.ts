@@ -1,5 +1,6 @@
 import { createBunHttpHandler } from "trpc-bun-adapter"
 import { appRouter } from "./router"
+import { MONITOR_UPLOAD_PATH } from "./monitor/constants"
 import {
   closeTerminalProcess,
   createTerminalProcess,
@@ -11,10 +12,7 @@ import {
   type TerminalCommand,
   type TerminalProcess,
 } from "./monitor"
-
-function readEnv(name: string, fallback?: string) {
-  return process.env[name] ?? fallback
-}
+import { handleUploadRequest } from "./monitor/upload"
 
 const PORT = 51301
 const HOST = "0.0.0.0"
@@ -36,6 +34,10 @@ Bun.serve({
   hostname: HOST,
   fetch(request, server) {
     const url = new URL(request.url)
+
+    if (url.pathname === MONITOR_UPLOAD_PATH) {
+      return handleUploadRequest(request)
+    }
 
     if (url.pathname === MONITOR_WS_PATH) {
       const upgraded = server.upgrade(request, {

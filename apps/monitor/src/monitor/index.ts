@@ -1,5 +1,6 @@
 export {
   MONITOR_TRPC_PATH,
+  MONITOR_UPLOAD_PATH,
   MONITOR_WS_PATH,
 } from "./constants"
 export { monitorInfoSchema } from "./schema"
@@ -16,4 +17,5 @@ export {
   getTerminalCommand,
   handleTerminalClientMessage,
 } from "./terminal"
+export { handleUploadRequest } from "./upload"
 export type { TerminalCommand, TerminalProcess } from "./terminal"

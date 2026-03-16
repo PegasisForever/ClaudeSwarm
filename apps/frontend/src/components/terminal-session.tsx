@@ -1,11 +1,19 @@
 import { XTerm } from "@pablo-lion/xterm-react"
 import { FitAddon } from "@xterm/addon-fit"
-import { useCallback, useEffect, useMemo, useRef } from "react"
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+} from "react"
 import { getWorkerTerminalUrl } from "../lib/worker-urls"
 
 type TerminalSessionProps = {
   command: string
   isActive: boolean
+  onPasteFiles?: (files: File[]) => Promise<void>
   port: number
   title: string
 }
@@ -13,6 +21,25 @@ type TerminalSessionProps = {
 type TerminalMessage =
   | { type: "output"; data: string }
   | { type: "exit"; exitCode: number }
+
+export type TerminalSessionHandle = {
+  sendInput: (data: string) => void
+}
+
+function getClipboardFiles(clipboardData: DataTransfer | null): File[] {
+  if (!clipboardData) {
+    return []
+  }
+
+  if (clipboardData.files.length > 0) {
+    return Array.from(clipboardData.files)
+  }
+
+  return Array.from(clipboardData.items)
+    .filter((item) => item.kind === "file")
+    .map((item) => item.getAsFile())
+    .filter((file): file is File => file !== null)
+}
 
 const terminalTheme = {
   background: "#282828",
@@ -49,15 +76,17 @@ const terminalOptions = {
   theme: terminalTheme,
 } as const
 
-export function TerminalSession({
+export const TerminalSession = forwardRef<TerminalSessionHandle, TerminalSessionProps>(function TerminalSession({
   command,
   isActive,
+  onPasteFiles,
   port,
-}: TerminalSessionProps) {
+}: TerminalSessionProps, ref) {
   const xtermRef = useRef<InstanceType<typeof XTerm> | null>(null)
   const fitAddon = useMemo(() => new FitAddon(), [])
   const socketRef = useRef<WebSocket | null>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
+  const pendingInputRef = useRef<string[]>([])
 
   const safeFit = useCallback(() => {
     try {
@@ -70,6 +99,39 @@ export function TerminalSession({
   const terminalUrl = useMemo(
     () => getWorkerTerminalUrl(port, command),
     [command, port],
+  )
+
+  const sendInput = useCallback((data: string) => {
+    const socket = socketRef.current
+
+    if (socket?.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ data, type: "input" }))
+      return
+    }
+
+    pendingInputRef.current.push(data)
+  }, [])
+
+  const flushPendingInput = useCallback(() => {
+    const socket = socketRef.current
+
+    if (socket?.readyState !== WebSocket.OPEN) {
+      return
+    }
+
+    for (const data of pendingInputRef.current) {
+      socket.send(JSON.stringify({ data, type: "input" }))
+    }
+
+    pendingInputRef.current = []
+  }, [])
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      sendInput,
+    }),
+    [sendInput],
   )
 
   useEffect(() => {
@@ -87,6 +149,7 @@ export function TerminalSession({
 
     socket.addEventListener("open", () => {
       requestAnimationFrame(sendResize)
+      flushPendingInput()
     })
 
     socket.addEventListener("message", (event) => {
@@ -128,7 +191,7 @@ export function TerminalSession({
       socket.close()
       socketRef.current = null
     }
-  }, [terminalUrl, fitAddon, safeFit])
+  }, [terminalUrl, fitAddon, safeFit, flushPendingInput])
 
   useEffect(() => {
     requestAnimationFrame(() => {
@@ -151,10 +214,42 @@ export function TerminalSession({
     })
   }, [isActive])
 
+  useEffect(() => {
+    const handlePaste = (event: ClipboardEvent) => {
+      const files = getClipboardFiles(event.clipboardData)
+
+      if (!isActive || files.length === 0 || !onPasteFiles) {
+        return
+      }
+
+      event.preventDefault()
+      event.stopPropagation()
+      void onPasteFiles(files)
+    }
+
+    document.addEventListener("paste", handlePaste, true)
+
+    return () => {
+      document.removeEventListener("paste", handlePaste, true)
+    }
+  }, [isActive, onPasteFiles])
+
+  const handleCustomKeyEvent = useCallback((event: KeyboardEvent) => {
+    const isPasteShortcut =
+      event.type === "keydown" &&
+      event.key.toLowerCase() === "v" &&
+      (event.ctrlKey || event.metaKey) &&
+      !event.altKey
+
+    if (!isPasteShortcut) {
+      return true
+    }
+
+    return false
+  }, [])
+
   const handleData = (data: string) => {
-    const socket = socketRef.current
-    if (socket?.readyState !== WebSocket.OPEN) return
-    socket.send(JSON.stringify({ data, type: "input" }))
+    sendInput(data)
   }
 
   const handleSelectionChange = () => {
@@ -175,10 +270,11 @@ export function TerminalSession({
           className="h-full w-full"
           options={terminalOptions}
           addons={[fitAddon]}
+          customKeyEventHandler={handleCustomKeyEvent}
           onData={handleData}
           onSelectionChange={handleSelectionChange}
         />
       </div>
     </div>
   )
-}
+})

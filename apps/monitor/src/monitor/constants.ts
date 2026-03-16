@@ -1,4 +1,5 @@
 export const MONITOR_TRPC_PATH = "/monitor/trpc"
+export const MONITOR_UPLOAD_PATH = "/monitor/upload"
 export const MONITOR_WS_PATH = "/monitor/ws"
 
 export const MONITOR_FLAG_PATH = "/tmp/monitor_flag"

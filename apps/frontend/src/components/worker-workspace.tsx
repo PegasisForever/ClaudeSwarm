@@ -10,6 +10,7 @@ import { IconCode, IconTerminal2, IconTrash } from "@tabler/icons-react"
 import { useAtom } from "jotai"
 import { atomWithStorage } from "jotai/utils"
 import {
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -22,6 +23,7 @@ import {
   writeStoredString,
 } from "../lib/storage"
 import { TerminalSession } from "./terminal-session"
+import { useWorkerTerminalDropzone } from "./use-worker-terminal-dropzone"
 import { getWorkerIframeUrl } from "../lib/worker-urls"
 
 const DEFAULT_TERMINAL_HEIGHT = 320
@@ -31,6 +33,9 @@ const terminalHeightAtom = atomWithStorage(
 )
 
 type WorkerWorkspaceState = "active" | "cached" | "unloaded"
+type WorkerTerminalHandle = {
+  sendInput: (data: string) => void
+}
 
 type WorkerWorkspaceProps = {
   onDestroyWorker: (port: number) => Promise<void>
@@ -76,12 +81,46 @@ export function WorkerWorkspace({
 }: WorkerWorkspaceProps) {
   const { port: workerPort } = worker
   const shellRef = useRef<HTMLDivElement | null>(null)
+  const claudeTerminalRef = useRef<WorkerTerminalHandle | null>(null)
+  const terminalRef = useRef<WorkerTerminalHandle | null>(null)
   const [terminalHeight, setTerminalHeight] = useAtom(terminalHeightAtom)
   const [destroyModalOpen, setDestroyModalOpen] = useState(false)
   const [isDestroying, setIsDestroying] = useState(false)
   const [activeTerminal, setActiveTerminal] = useState<TerminalName>(() => {
     const storedTerminal = readStoredString(getTerminalSelectionKey(workerPort))
     return storedTerminal === "terminal" ? "terminal" : "claude"
+  })
+
+  const handleUploadPathReady = useCallback(
+    (typedPaths: string[], targetTerminal: TerminalName) => {
+      const terminalHandle =
+        targetTerminal === "claude"
+          ? claudeTerminalRef.current
+          : terminalRef.current
+
+      if (typedPaths.length === 0) {
+        return
+      }
+
+      terminalHandle?.sendInput(typedPaths.join(" "))
+    },
+    [],
+  )
+
+  const {
+    clearUploadError,
+    getInputProps,
+    getRootProps,
+    isUploading,
+    showDropOverlay,
+    uploadError,
+    uploadFiles,
+    uploadingFileName,
+  } = useWorkerTerminalDropzone({
+    activeTerminal,
+    disabled: state !== "active",
+    onUploadPathReady: handleUploadPathReady,
+    workerPort,
   })
 
   const handleDestroy = async () => {
@@ -181,6 +220,39 @@ export function WorkerWorkspace({
         </ModalContent>
       </Modal>
 
+      <Modal
+        backdrop="blur"
+        isOpen={uploadError !== null}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) {
+            clearUploadError()
+          }
+        }}
+        placement="top-center"
+      >
+        <ModalContent>
+          {(close) => (
+            <>
+              <ModalHeader>Upload Failed</ModalHeader>
+              <ModalBody>
+                <p className="text-default-500">{uploadError}</p>
+              </ModalBody>
+              <ModalFooter className="pt-3">
+                <Button
+                  onPress={() => {
+                    clearUploadError()
+                    close()
+                  }}
+                  variant="light"
+                >
+                  Close
+                </Button>
+              </ModalFooter>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
+
       <section
         className={`absolute inset-0 flex flex-col ${hiddenClass}`}
         ref={shellRef}
@@ -238,13 +310,38 @@ export function WorkerWorkspace({
               </Button>
             </div>
           </div>
-          <div className="relative min-w-0 flex-1">
+          <div {...getRootProps({ className: "relative min-w-0 flex-1" })}>
+            <input {...getInputProps()} />
+            <div
+              className={`absolute inset-0 z-20 flex items-center justify-center transition ${
+                showDropOverlay
+                  ? "pointer-events-auto opacity-100"
+                  : "pointer-events-none opacity-0"
+              }`}
+            >
+              <div className="rounded-2xl border border-dashed border-white/30 bg-black/65 px-6 py-5 text-center backdrop-blur-sm">
+                <p className="text-sm font-medium text-white">
+                  {isUploading
+                    ? `Uploading ${uploadingFileName ?? "file"}...`
+                    : "Drop files to upload into ~/Uploads"}
+                </p>
+                <p className="mt-1 text-xs text-gray-300">
+                  Uploaded paths will be typed into the active terminal.
+                </p>
+              </div>
+            </div>
             {terminalSessions.map((session) => (
               <TerminalSession
                 command={session.command}
-                isActive={activeTerminal === session.value && state === "active"}
+                isActive={
+                  activeTerminal === session.value && state === "active"
+                }
                 key={session.value}
+                onPasteFiles={uploadFiles}
                 port={workerPort}
+                ref={
+                  session.value === "claude" ? claudeTerminalRef : terminalRef
+                }
                 title={session.label}
               />
             ))}
