@@ -4,7 +4,11 @@
       "name": "default",
       "imageTag": "pegasis0/claude-worker:latest",
       "presetEnv": {
-        "DISCORD_USER_ID": "591663117545635870"
+        "DISCORD_USER_ID": "591663117545635870",
+        "GIT_AUTHOR_NAME": "Pegasis's Claude Swarm",
+        "GIT_AUTHOR_EMAIL": "claude-swarm@pegasis.site",
+        "GIT_COMMITTER_NAME": "Pegasis's Claude Swarm",
+        "GIT_COMMITTER_EMAIL": "claude-swarm@pegasis.site"
       },
       "requiredEnv": [
         "DISCORD_WEBHOOK_URL",
