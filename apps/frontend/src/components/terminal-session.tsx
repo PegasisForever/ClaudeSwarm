@@ -133,7 +133,6 @@ export function TerminalSession({
   useEffect(() => {
     requestAnimationFrame(() => {
       safeFit()
-      xtermRef.current?.focus()
 
       const socket = socketRef.current
       const xterm = xtermRef.current
@@ -144,6 +143,13 @@ export function TerminalSession({
       socket.send(JSON.stringify({ cols, rows, type: "resize" }))
     })
   }, [safeFit])
+
+  useEffect(() => {
+    if (!isActive) return
+    requestAnimationFrame(() => {
+      xtermRef.current?.focus()
+    })
+  }, [isActive])
 
   const handleData = (data: string) => {
     const socket = socketRef.current
