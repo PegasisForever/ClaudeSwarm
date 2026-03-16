@@ -63,3 +63,7 @@ An example configuration file is provided in [`/apps/backend/config.json`](./app
 
 - `presetEnv` is a dictionary of predefined environment variables.
 - `requiredEnv` is an array of environment variables that must be set when starting a worker.
+
+## Worker Image
+
+See [`/claude-worker/README.md`](./claude-worker/README.md) for how to create custom worker images.
