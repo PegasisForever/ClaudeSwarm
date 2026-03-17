@@ -38,7 +38,7 @@ type WorkerTerminalHandle = {
 }
 
 type WorkerWorkspaceProps = {
-  onDestroyWorker: (port: number) => Promise<void>
+  onDestroyWorker: (id: string) => Promise<void>
   state: WorkerWorkspaceState
   worker: WorkerInfo
 }
@@ -79,7 +79,7 @@ export function WorkerWorkspace({
   state,
   worker,
 }: WorkerWorkspaceProps) {
-  const { port: workerPort } = worker
+  const { id: workerId, port: workerPort } = worker
   const shellRef = useRef<HTMLDivElement | null>(null)
   const claudeTerminalRef = useRef<WorkerTerminalHandle | null>(null)
   const terminalRef = useRef<WorkerTerminalHandle | null>(null)
@@ -87,7 +87,7 @@ export function WorkerWorkspace({
   const [destroyModalOpen, setDestroyModalOpen] = useState(false)
   const [isDestroying, setIsDestroying] = useState(false)
   const [activeTerminal, setActiveTerminal] = useState<TerminalName>(() => {
-    const storedTerminal = readStoredString(getTerminalSelectionKey(workerPort))
+    const storedTerminal = readStoredString(getTerminalSelectionKey(workerId))
     return storedTerminal === "terminal" ? "terminal" : "claude"
   })
 
@@ -126,7 +126,7 @@ export function WorkerWorkspace({
   const handleDestroy = async () => {
     setIsDestroying(true)
     try {
-      await onDestroyWorker(workerPort)
+      await onDestroyWorker(workerId)
     } finally {
       setIsDestroying(false)
       setDestroyModalOpen(false)
@@ -134,8 +134,8 @@ export function WorkerWorkspace({
   }
 
   useEffect(() => {
-    writeStoredString(getTerminalSelectionKey(workerPort), activeTerminal)
-  }, [activeTerminal, workerPort])
+    writeStoredString(getTerminalSelectionKey(workerId), activeTerminal)
+  }, [activeTerminal, workerId])
 
   const beginResize = (event: ReactPointerEvent<HTMLDivElement>) => {
     const shell = shellRef.current
@@ -199,7 +199,7 @@ export function WorkerWorkspace({
               <ModalHeader>Destroy Worker</ModalHeader>
               <ModalBody>
                 <p className="text-default-500">
-                  Destroy &quot;{worker.title}&quot; on port {worker.port}?
+                  Destroy &quot;{worker.title}&quot;?
                 </p>
               </ModalBody>
               <ModalFooter className="pt-3">

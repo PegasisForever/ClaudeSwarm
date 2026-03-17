@@ -4,7 +4,7 @@ import { DashboardPage } from "./pages/dashboard-page"
 export default function App() {
   return (
     <Routes>
-      <Route path="/:port?" element={<DashboardPage />} />
+      <Route path="/:id?" element={<DashboardPage />} />
       <Route path="*" element={<Navigate replace to="/" />} />
     </Routes>
   )

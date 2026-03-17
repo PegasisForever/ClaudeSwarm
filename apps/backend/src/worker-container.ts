@@ -139,7 +139,7 @@ export function readPublishedPort(container: Docker.ContainerInspectInfo) {
   return Number.isNaN(port) ? undefined : port
 }
 
-export async function findManagedContainerByPort(port: number) {
+export async function findManagedContainerById(id: string) {
   const containers = await docker.listContainers({ all: true })
 
   for (const container of containers) {
@@ -147,11 +147,8 @@ export async function findManagedContainerByPort(port: number) {
       continue
     }
 
-    const dockerContainer = docker.getContainer(container.Id)
-    const inspection = await dockerContainer.inspect()
-
-    if (readPublishedPort(inspection) === port) {
-      return dockerContainer
+    if (container.Id === id) {
+      return docker.getContainer(container.Id)
     }
   }
 

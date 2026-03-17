@@ -36,10 +36,10 @@ export function AddWorkerModal({
   const [showLongLoadHint, setShowLongLoadHint] = useState(false)
 
   const startWorker = trpc.startWorker.useMutation({
-    onSuccess: async ({ port }) => {
+    onSuccess: async ({ id }) => {
       onOpenChange(false)
       await utils.workers.invalidate()
-      void navigate(`/${port}`)
+      void navigate(`/${id}`)
     },
     onSettled: () => setShowLongLoadHint(false),
   })

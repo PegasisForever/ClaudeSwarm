@@ -12,8 +12,8 @@ type WorkerSidebarProps = {
 }
 
 function WorkerItem({ worker }: { worker: WorkerInfo }) {
-  const { port } = useParams<{ port: string }>()
-  const isActive = port === String(worker.port)
+  const { id } = useParams<{ id: string }>()
+  const isActive = id === worker.id
 
   return (
     <Button
@@ -21,7 +21,7 @@ function WorkerItem({ worker }: { worker: WorkerInfo }) {
       className={`relative h-auto w-full flex-col items-start gap-0 rounded-none px-4 py-3 text-left ${
         isActive ? "bg-gray-700" : ""
       }`}
-      to={`/${worker.port}`}
+      to={`/${worker.id}`}
       variant="light"
       fullWidth
     >
@@ -76,7 +76,7 @@ export function WorkerSidebar({ presets, workers }: WorkerSidebarProps) {
             <div className="flex flex-col">
               {workers.map((worker) => (
                 <WorkerItem
-                  key={`${worker.port}-${worker.title}`}
+                  key={worker.id}
                   worker={worker}
                 />
               ))}

@@ -15,6 +15,7 @@ export type PresetInfo = {
 }
 
 export type WorkerInfo = {
+  id: string
   durationS: number
   port: number
   pr?: WorkerPullRequest

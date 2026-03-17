@@ -12,26 +12,25 @@ const WORKING_TO_NOTIFY: readonly string[] = ["idle", "waiting", "error"]
 function showWorkerTransitionNotification(
   worker: WorkerInfo,
   newStatus: string,
-  onNavigate: (port: number) => void,
+  onNavigate: (id: string) => void,
 ) {
   if (!("Notification" in window) || Notification.permission !== "granted") return
 
   const n = new Notification("Worker finished", {
     body: `${worker.title} (${worker.preset}) is now ${newStatus}`,
-    tag: `worker-${worker.port}`,
+    tag: `worker-${worker.id}`,
   })
 
   n.onclick = () => {
     window.focus()
     n.close()
-    onNavigate(worker.port)
+    onNavigate(worker.id)
   }
 }
 
 export function DashboardPage() {
   const navigate = useNavigate()
-  const { port: portParam } = useParams<{ port: string }>()
-  const activePort = portParam ? Number(portParam) : undefined
+  const { id: activeId } = useParams<{ id: string }>()
 
   const workersQuery = trpc.workers.useQuery(undefined, {
     refetchInterval: 1_000,
@@ -42,9 +41,9 @@ export function DashboardPage() {
     staleTime: Number.POSITIVE_INFINITY,
   })
   const destroyWorker = trpc.destroyWorker.useMutation()
-  const [recentPorts, setRecentPorts] = useState<number[]>([])
-  const [prevActivePort, setPrevActivePort] = useState<number | undefined>()
-  const prevStatusByPort = useRef<Map<number, string>>(new Map())
+  const [recentIds, setRecentIds] = useState<string[]>([])
+  const [prevActiveId, setPrevActiveId] = useState<string | undefined>()
+  const prevStatusById = useRef<Map<string, string>>(new Map())
 
   useEffect(() => {
     if (!("Notification" in window)) return
@@ -55,25 +54,25 @@ export function DashboardPage() {
 
   useEffect(() => {
     const workers = workersQuery.data ?? []
-    const prev = prevStatusByPort.current
+    const prev = prevStatusById.current
 
     for (const worker of workers) {
-      const prevStatus = prev.get(worker.port)
-      prev.set(worker.port, worker.status)
+      const prevStatus = prev.get(worker.id)
+      prev.set(worker.id, worker.status)
 
       if (
         prevStatus === "working" &&
         WORKING_TO_NOTIFY.includes(worker.status)
       ) {
-        showWorkerTransitionNotification(worker, worker.status, (port) => {
-          void navigate(`/${port}`)
+        showWorkerTransitionNotification(worker, worker.status, (id) => {
+          void navigate(`/${id}`)
         })
       }
     }
 
-    for (const port of prev.keys()) {
-      if (!workers.some((w) => w.port === port)) {
-        prev.delete(port)
+    for (const id of prev.keys()) {
+      if (!workers.some((w) => w.id === id)) {
+        prev.delete(id)
       }
     }
   }, [workersQuery.data, navigate])
@@ -81,31 +80,31 @@ export function DashboardPage() {
   const workers = workersQuery.data ?? []
   const presets = presetsQuery.data ?? []
 
-  if (activePort !== undefined && activePort !== prevActivePort) {
-    setPrevActivePort(activePort)
-    setRecentPorts((prev) =>
-      [activePort, ...prev.filter((p) => p !== activePort)].slice(
+  if (activeId !== undefined && activeId !== prevActiveId) {
+    setPrevActiveId(activeId)
+    setRecentIds((prev) =>
+      [activeId, ...prev.filter((id) => id !== activeId)].slice(
         0,
         MAX_CACHED_WORKSPACES,
       ),
     )
   }
 
-  const availablePorts = new Set(workers.map((w) => w.port))
+  const availableIds = new Set(workers.map((w) => w.id))
 
-  const cachedPorts = recentPorts.filter((p) => availablePorts.has(p))
+  const cachedIds = recentIds.filter((id) => availableIds.has(id))
 
-  const getWorkerState = (port: number): "active" | "cached" | "unloaded" => {
-    if (port === activePort) return "active"
-    if (cachedPorts.includes(port)) return "cached"
+  const getWorkerState = (id: string): "active" | "cached" | "unloaded" => {
+    if (id === activeId) return "active"
+    if (cachedIds.includes(id)) return "cached"
     return "unloaded"
   }
 
-  const handleDestroyWorker = async (port: number) => {
-    await destroyWorker.mutateAsync({ port })
+  const handleDestroyWorker = async (id: string) => {
+    await destroyWorker.mutateAsync({ id })
     await workersQuery.refetch()
 
-    setRecentPorts((prev) => prev.filter((p) => p !== port))
+    setRecentIds((prev) => prev.filter((i) => i !== id))
     void navigate("/")
   }
 
@@ -116,12 +115,12 @@ export function DashboardPage() {
 
         <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
           <div className="relative min-h-0 flex-1 overflow-hidden">
-            {activePort && availablePorts.has(activePort) ? (
+            {activeId && availableIds.has(activeId) ? (
               workers.map((worker) => (
                 <WorkerWorkspace
-                  key={worker.port}
+                  key={worker.id}
                   onDestroyWorker={handleDestroyWorker}
-                  state={getWorkerState(worker.port)}
+                  state={getWorkerState(worker.id)}
                   worker={worker}
                 />
               ))

@@ -137,7 +137,7 @@ export async function startWorkerContainer({
       console.error("[startWorker] container not healthy, returning port anyway", error)
     }
 
-    return { port, healthy }
+    return { id: container.id, port, healthy }
   } catch (error) {
     try {
       await container.remove({ force: true })

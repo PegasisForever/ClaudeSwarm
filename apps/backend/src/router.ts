@@ -19,6 +19,7 @@ const workerStatusSchema = z.enum([
 ])
 
 const workerSchema = z.object({
+  id: z.string(),
   title: z.string(),
   preset: z.string(),
   status: workerStatusSchema,
@@ -34,6 +35,11 @@ const workerSchema = z.object({
     })
     .optional(),
 })
+
+// const workersSchema = z.object({
+//   workers: z.array(workerSchema),
+//   hierarchy: z.record(z.number(), z.array(z.number())),
+// })
 
 const presetsSchema = z.array(
   z.object({
@@ -64,13 +70,13 @@ export const appRouter = router({
   destroyWorker: publicProcedure
     .input(
       z.object({
-        port: z.number(),
+        id: z.string(),
       }),
     )
     .output(z.void())
     .mutation(async ({ input }) => {
       try {
-        await destroyWorkerContainer(input.port)
+        await destroyWorkerContainer(input.id)
         return undefined
       } catch (error) {
         console.error("[destroyWorker] failed to destroy worker", error)
@@ -93,6 +99,7 @@ export const appRouter = router({
     )
     .output(
       z.object({
+        id: z.string(),
         port: z.number(),
         healthy: z.boolean(),
       }),

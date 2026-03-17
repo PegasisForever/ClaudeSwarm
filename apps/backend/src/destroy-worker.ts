@@ -1,11 +1,11 @@
 import { clearWorkersCache } from "./list-workers"
-import { findManagedContainerByPort } from "./worker-container"
+import { findManagedContainerById } from "./worker-container"
 
-export async function destroyWorkerContainer(port: number) {
-  const container = await findManagedContainerByPort(port)
+export async function destroyWorkerContainer(id: string) {
+  const container = await findManagedContainerById(id)
 
   if (!container) {
-    throw new Error(`No managed worker found for port ${port}`)
+    throw new Error(`No managed worker found for id ${id}`)
   }
 
   await container.remove({ force: true })

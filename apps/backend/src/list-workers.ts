@@ -17,6 +17,7 @@ const WORKERS_CACHE_TTL_MS = 900
 type MonitorStatusOutput = inferRouterOutputs<MonitorRouterContract>["status"]
 
 export type WorkerInfo = {
+  id: string
   title: string
   preset: string
   status: "working" | "idle" | "waiting" | "error" | "stopped"
@@ -147,6 +148,7 @@ async function loadWorkers(): Promise<WorkerInfo[]> {
       const monitorStatus = await getContainerMonitorStatus(inspection)
 
       return {
+        id: container.Id,
         title:
           inspection.Config.Labels?.[WORKER_TITLE_LABEL] ??
           container.Labels?.[WORKER_TITLE_LABEL] ??
