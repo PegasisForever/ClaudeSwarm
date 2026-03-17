@@ -47,6 +47,7 @@ For end-user customization, the most important hook is `~/setup.sh`. Build your 
 | `CLAUDE_CODE_OAUTH_TOKEN` | OAuth token for authenticating with Claude Code, get from `claude setup-token` |
 | `GITHUB_TOKEN`            | GitHub personal access token for repository operations                         |
 | `CLAUDE_PROMPT`           | Initial prompt to send to Claude Code on startup                               |
+| `CLAUDE_ONESHOT`          | If set, Claude runs in oneshot mode: output is piped to the orchestrator and the worker self-destructs when done |
 | `DISCORD_USER_ID`         | Discord user ID to notify on build completion                                  |
 | `DISCORD_WEBHOOK_URL`     | Discord webhook URL to send notifications to                                   |
 

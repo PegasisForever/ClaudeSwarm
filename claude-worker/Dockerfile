@@ -70,6 +70,10 @@ COPY --chown=kasm-user:kasm-user setup.sh /home/kasm-user/setup.sh
 RUN rm /home/kasm-user/.bash_history
 RUN rm -rf /home/kasm-user/.vnc
 
+# orchestrator cli
+COPY --chown=kasm-user:kasm-user orchestrator.py /home/kasm-user/orchestrator.py
+RUN chmod +x /home/kasm-user/orchestrator.py
+
 ENV CLAUDE_WORKER=1
 
 # Health check - polls the monitor tRPC health query every 1s

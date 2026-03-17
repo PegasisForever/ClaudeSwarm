@@ -3,12 +3,22 @@
 
 import argparse
 import json
+import os
 import sys
 import urllib.request
 import urllib.error
 import urllib.parse
 
-DEFAULT_BASE = "http://localhost:3000/api/trpc"
+
+def get_base_url():
+    orchestrator = os.environ.get("ORCHESTRATOR_ADDRESS")
+    if orchestrator:
+        url = f"http://{orchestrator}:3000/api/trpc"
+        print(f"[claudeswarm] using ORCHESTRATOR_ADDRESS: {url}", file=sys.stderr)
+        return url
+    url = "http://localhost:3000/api/trpc"
+    print(f"[claudeswarm] ORCHESTRATOR_ADDRESS not set, using {url}", file=sys.stderr)
+    return url
 
 
 def trpc_query(base_url: str, procedure: str, input_data=None):
@@ -54,16 +64,25 @@ def _do_request(req: urllib.request.Request):
         sys.exit(1)
 
 
+def cmd_health(args):
+    result = trpc_query(args.base_url, "health")
+    print(json.dumps(result, indent=2))
+
+
+def cmd_presets(args):
+    result = trpc_query(args.base_url, "presets")
+    print(json.dumps(result, indent=2))
+
+
 def cmd_workers(args):
     result = trpc_query(args.base_url, "workers")
     print(json.dumps(result, indent=2))
 
 
 def cmd_destroy_worker(args):
-    result = trpc_mutation(args.base_url, "destroyWorker", {"port": args.port})
-    print(f"Worker on port {args.port} destroyed.")
-    if result:
-        print(json.dumps(result, indent=2))
+    payload = {"id": args.id} if args.id else {}
+    trpc_mutation(args.base_url, "destroyWorker", payload)
+    print(f"Worker {args.id or 'self'} destroyed.")
 
 
 def cmd_start_worker(args):
@@ -84,19 +103,29 @@ def cmd_start_worker(args):
     print(json.dumps(result, indent=2))
 
 
+def cmd_set_worker_output(args):
+    output = sys.stdin.read()
+    trpc_mutation(args.base_url, "setWorkerOutput", {"output": output})
+    print("Worker output set.")
+
+
+def cmd_get_worker_output(args):
+    result = trpc_query(args.base_url, "getWorkerOutput", {"workerId": args.worker_id})
+    print(json.dumps(result, indent=2))
+
+
 def main():
     parser = argparse.ArgumentParser(description="ClaudeSwarm tRPC CLI")
-    parser.add_argument(
-        "--base-url",
-        default=DEFAULT_BASE,
-        help=f"tRPC base URL (default: {DEFAULT_BASE})",
-    )
     sub = parser.add_subparsers(dest="command", required=True)
+
+    sub.add_parser("health", help="Check backend health")
+
+    sub.add_parser("presets", help="List available presets")
 
     sub.add_parser("workers", help="List all workers")
 
-    destroy = sub.add_parser("destroy-worker", help="Destroy a worker by port")
-    destroy.add_argument("port", type=int, help="Port of the worker to destroy")
+    destroy = sub.add_parser("destroy-worker", help="Destroy a worker by id (or self if no id given)")
+    destroy.add_argument("id", nargs="?", default=None, help="ID of the worker to destroy (omit to destroy self)")
 
     start = sub.add_parser("start-worker", help="Start a new worker")
     start.add_argument("title", help="Worker title")
@@ -106,14 +135,24 @@ def main():
         help="Environment variable (can be repeated)",
     )
 
-    args = parser.parse_args()
+    sub.add_parser("set-worker-output", help="Set output for the calling worker (reads from stdin)")
 
-    if args.command == "workers":
-        cmd_workers(args)
-    elif args.command == "destroy-worker":
-        cmd_destroy_worker(args)
-    elif args.command == "start-worker":
-        cmd_start_worker(args)
+    get_output = sub.add_parser("get-worker-output", help="Get output for a worker")
+    get_output.add_argument("worker_id", help="ID of the worker")
+
+    args = parser.parse_args()
+    args.base_url = get_base_url()
+
+    commands = {
+        "health": cmd_health,
+        "presets": cmd_presets,
+        "workers": cmd_workers,
+        "destroy-worker": cmd_destroy_worker,
+        "start-worker": cmd_start_worker,
+        "set-worker-output": cmd_set_worker_output,
+        "get-worker-output": cmd_get_worker_output,
+    }
+    commands[args.command](args)
 
 
 if __name__ == "__main__":

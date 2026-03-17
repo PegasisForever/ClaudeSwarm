@@ -78,15 +78,39 @@ export const appRouter = router({
   destroyWorker: publicProcedure
     .input(
       z.object({
-        id: z.string(),
+        id: z.string().optional(),
       }),
     )
     .output(z.void())
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       try {
-        await destroyWorkerContainer(input.id)
+        let targetId = input.id
+
+        if (!targetId) {
+          if (!ctx.clientIp) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: "No id provided and unable to determine caller IP",
+            })
+          }
+
+          const caller = await resolveWorkerByIp(ctx.clientIp)
+
+          if (!caller) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: "No id provided and caller is not a managed worker",
+            })
+          }
+
+          targetId = caller.id
+        }
+
+        await destroyWorkerContainer(targetId)
         return undefined
       } catch (error) {
+        if (error instanceof TRPCError) throw error
+
         console.error("[destroyWorker] failed to destroy worker", error)
 
         throw new TRPCError({
