@@ -2,8 +2,10 @@ import { createBunServeHandler } from "trpc-bun-adapter"
 import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { config } from "./config"
-import { appRouter } from "./router"
+import { appRouter, type TRPCContext } from "./router"
 import { initializeWorkerContainerRuntime } from "./worker-container"
+
+const requestIpMap = new WeakMap<Request, string>()
 
 function readEnv(name: string, fallback?: string) {
   return process.env[name] ?? fallback
@@ -95,19 +97,31 @@ async function handleFallback(request: Request) {
 
 const renderDeviceGroupId = await initializeWorkerContainerRuntime()
 
-Bun.serve(
-  createBunServeHandler(
-    {
-      endpoint: "/api/trpc",
-      router: appRouter,
-    },
-    {
-      port,
-      hostname: host,
-      fetch: handleFallback,
-    },
-  ),
+const handler = createBunServeHandler(
+  {
+    endpoint: "/api/trpc",
+    router: appRouter,
+    createContext: ({ req }: { req: Request }): TRPCContext => ({
+      clientIp: requestIpMap.get(req),
+    }),
+  },
+  {
+    port,
+    hostname: host,
+    fetch: handleFallback,
+  },
 )
+
+const originalFetch = handler.fetch
+handler.fetch = async (req: Request, server: Parameters<typeof originalFetch>[1]) => {
+  const socketAddress = server.requestIP(req)
+  if (socketAddress) {
+    requestIpMap.set(req, socketAddress.address)
+  }
+  return originalFetch(req, server)
+}
+
+Bun.serve(handler)
 
 if (renderDeviceGroupId === undefined) {
   console.log(

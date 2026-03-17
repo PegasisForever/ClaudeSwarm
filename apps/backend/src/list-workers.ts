@@ -6,6 +6,7 @@ import {
   docker,
   getKnownPresetNames,
   readPublishedPort,
+  WORKER_PARENT_LABEL,
   WORKER_PRESET_LABEL,
   WORKER_TITLE_LABEL,
 } from "./worker-container"
@@ -23,15 +24,21 @@ export type WorkerInfo = {
   status: "working" | "idle" | "waiting" | "error" | "stopped"
   port: number
   durationS: number
+  createdAt: number
   pr?: MonitorStatusOutput["pr"]
 }
 
+export type WorkersResult = {
+  workers: WorkerInfo[]
+  hierarchy: Record<string, string[]>
+}
+
 const workersCache: {
-  data: WorkerInfo[]
+  data: WorkersResult
   fetchedAt: number
-  promise: Promise<WorkerInfo[]> | null
+  promise: Promise<WorkersResult> | null
 } = {
-  data: [],
+  data: { workers: [], hierarchy: {} },
   fetchedAt: 0,
   promise: null,
 }
@@ -133,7 +140,7 @@ async function inspectWorkerContainer(containerId: string) {
   return docker.getContainer(containerId).inspect()
 }
 
-async function loadWorkers(): Promise<WorkerInfo[]> {
+async function loadWorkers(): Promise<WorkersResult> {
   const knownPresets = getKnownPresetNames()
   const containers = await docker.listContainers({ all: true })
 
@@ -141,36 +148,62 @@ async function loadWorkers(): Promise<WorkerInfo[]> {
     knownPresets.has(container.Labels?.[WORKER_PRESET_LABEL] ?? ""),
   )
 
-  return Promise.all(
+  const allWorkers = await Promise.all(
     workerContainers.map(async (container) => {
       const inspection = await inspectWorkerContainer(container.Id)
       const port = readPublishedPort(inspection)
       const monitorStatus = await getContainerMonitorStatus(inspection)
 
+      const parentId =
+        inspection.Config.Labels?.[WORKER_PARENT_LABEL] ??
+        container.Labels?.[WORKER_PARENT_LABEL] ??
+        undefined
+
       return {
-        id: container.Id,
-        title:
-          inspection.Config.Labels?.[WORKER_TITLE_LABEL] ??
-          container.Labels?.[WORKER_TITLE_LABEL] ??
-          inspection.Name.replace(/^\//, ""),
-        preset:
-          inspection.Config.Labels?.[WORKER_PRESET_LABEL] ??
-          container.Labels?.[WORKER_PRESET_LABEL] ??
-          "unknown",
-        status: monitorStatus.status,
-        port: port ?? 0,
-        durationS: getDurationS(inspection, container.Created),
-        pr: "pr" in monitorStatus ? monitorStatus.pr : undefined,
-      } satisfies WorkerInfo
+        parentId,
+        info: {
+          id: container.Id,
+          title:
+            inspection.Config.Labels?.[WORKER_TITLE_LABEL] ??
+            container.Labels?.[WORKER_TITLE_LABEL] ??
+            inspection.Name.replace(/^\//, ""),
+          preset:
+            inspection.Config.Labels?.[WORKER_PRESET_LABEL] ??
+            container.Labels?.[WORKER_PRESET_LABEL] ??
+            "unknown",
+          status: monitorStatus.status,
+          port: port ?? 0,
+          durationS: getDurationS(inspection, container.Created),
+          createdAt: container.Created,
+          pr: "pr" in monitorStatus ? monitorStatus.pr : undefined,
+        } satisfies WorkerInfo,
+      }
     }),
   )
+
+  // Sort by creation time, newest first
+  allWorkers.sort((a, b) => b.info.createdAt - a.info.createdAt)
+
+  const workers: WorkerInfo[] = allWorkers.map((w) => w.info)
+
+  // Build hierarchy: parentId -> [childId, ...]
+  const hierarchy: Record<string, string[]> = {}
+  for (const w of allWorkers) {
+    if (w.parentId) {
+      const children = hierarchy[w.parentId] ?? []
+      children.push(w.info.id)
+      hierarchy[w.parentId] = children
+    }
+  }
+
+  return { workers, hierarchy }
 }
 
 export function clearWorkersCache() {
   workersCache.fetchedAt = 0
 }
 
-export async function listWorkers() {
+export async function listWorkers(): Promise<WorkersResult> {
   if (isCacheFresh()) {
     return workersCache.data
   }
@@ -182,11 +215,11 @@ export async function listWorkers() {
   workersCache.promise = loadWorkers()
 
   try {
-    const workers = await workersCache.promise
-    workersCache.data = workers
+    const result = await workersCache.promise
+    workersCache.data = result
     workersCache.fetchedAt = Date.now()
 
-    return workers
+    return result
   } finally {
     workersCache.promise = null
   }

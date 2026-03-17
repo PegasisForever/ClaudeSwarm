@@ -52,8 +52,11 @@ export function DashboardPage() {
     }
   }, [])
 
+  const workers = workersQuery.data?.workers ?? []
+  const hierarchy = workersQuery.data?.hierarchy ?? {}
+  const presets = presetsQuery.data ?? []
+
   useEffect(() => {
-    const workers = workersQuery.data ?? []
     const prev = prevStatusById.current
 
     for (const worker of workers) {
@@ -75,10 +78,7 @@ export function DashboardPage() {
         prev.delete(id)
       }
     }
-  }, [workersQuery.data, navigate])
-
-  const workers = workersQuery.data ?? []
-  const presets = presetsQuery.data ?? []
+  }, [workers, navigate])
 
   if (activeId !== undefined && activeId !== prevActiveId) {
     setPrevActiveId(activeId)
@@ -111,7 +111,11 @@ export function DashboardPage() {
   return (
     <>
       <div className="bg-background text-foreground flex min-h-screen">
-        <WorkerSidebar presets={presets} workers={workers} />
+        <WorkerSidebar
+          presets={presets}
+          workers={workers}
+          hierarchy={hierarchy}
+        />
 
         <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
           <div className="relative min-h-0 flex-1 overflow-hidden">

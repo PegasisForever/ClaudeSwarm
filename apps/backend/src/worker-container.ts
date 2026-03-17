@@ -7,6 +7,7 @@ export const docker = new Docker()
 export const WORKER_MONITOR_PORT = "51300/tcp"
 export const WORKER_PRESET_LABEL = "claudeswarm.preset"
 export const WORKER_TITLE_LABEL = "claudeswarm.title"
+export const WORKER_PARENT_LABEL = "claudeswarm.parent"
 const RENDER_DEVICE_STAT_IMAGE = "busybox"
 
 export let renderDeviceGroupId: number | undefined
@@ -137,6 +138,30 @@ export function readPublishedPort(container: Docker.ContainerInspectInfo) {
 
   const port = Number.parseInt(hostPort, 10)
   return Number.isNaN(port) ? undefined : port
+}
+
+export async function resolveWorkerByIp(ip: string) {
+  const containers = await docker.listContainers({ all: true })
+
+  for (const container of containers) {
+    if (!isManagedContainer(container)) {
+      continue
+    }
+
+    const networks = container.NetworkSettings?.Networks
+    if (!networks) continue
+
+    for (const network of Object.values(networks)) {
+      if (network.IPAddress === ip) {
+        return {
+          id: container.Id,
+          parentId: container.Labels?.[WORKER_PARENT_LABEL] || undefined,
+        }
+      }
+    }
+  }
+
+  return undefined
 }
 
 export async function findManagedContainerById(id: string) {

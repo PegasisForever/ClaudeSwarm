@@ -18,10 +18,16 @@ export type WorkerInfo = {
   id: string
   durationS: number
   port: number
+  createdAt: number
   pr?: WorkerPullRequest
   preset: string
   status: WorkerStatus
   title: string
+}
+
+export type WorkersResponse = {
+  workers: WorkerInfo[]
+  hierarchy: Record<string, string[]>
 }
 
 export type StartWorkerInput = {

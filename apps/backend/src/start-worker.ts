@@ -19,6 +19,7 @@ type StartWorkerParams = {
   title: string
   preset: string
   env: Record<string, string>
+  labels?: Record<string, string>
 }
 
 function sleep(ms: number) {
@@ -71,6 +72,7 @@ export async function startWorkerContainer({
   title,
   preset,
   env,
+  labels,
 }: StartWorkerParams) {
   const selectedPreset = getPreset(preset)
   const mergedEnv = {
@@ -116,6 +118,7 @@ export async function startWorkerContainer({
     Labels: {
       [WORKER_PRESET_LABEL]: selectedPreset.name,
       [WORKER_TITLE_LABEL]: title,
+      ...labels,
     },
   })
 
