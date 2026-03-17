@@ -1,5 +1,5 @@
 import { mkdir } from "fs/promises"
-import { dirname } from "path"
+import { basename, dirname, extname, join } from "path"
 
 type ResponseHeaders = Headers | Record<string, string>
 
@@ -26,6 +26,32 @@ function json(
     ...init,
     headers: buildCorsHeaders(request, init?.headers),
   })
+}
+
+async function resolveUploadPath(preferredPath: string) {
+  if (!(await Bun.file(preferredPath).exists())) {
+    return preferredPath
+  }
+
+  const directory = dirname(preferredPath)
+  const extension = extname(preferredPath)
+  const filename = basename(preferredPath, extension)
+  const timestamp = Date.now()
+  let attempt = 0
+
+  while (true) {
+    const attemptSuffix = attempt === 0 ? "" : `-${attempt}`
+    const candidatePath = join(
+      directory,
+      `${filename}-${timestamp}${attemptSuffix}${extension}`,
+    )
+
+    if (!(await Bun.file(candidatePath).exists())) {
+      return candidatePath
+    }
+
+    attempt += 1
+  }
 }
 
 export async function handleUploadRequest(request: Request): Promise<Response> {
@@ -81,17 +107,22 @@ export async function handleUploadRequest(request: Request): Promise<Response> {
     )
   }
 
-  await mkdir(dirname(pathField), { recursive: true })
-  await Bun.write(pathField, fileField)
+  const actualPath = await resolveUploadPath(pathField)
+
+  await mkdir(dirname(actualPath), { recursive: true })
+  await Bun.write(actualPath, fileField)
 
   return json(
     request,
     {
       ok: true,
-      path: pathField,
+      actualPath,
       size: fileField.size,
       type: fileField.type,
       name: fileField.name,
+      path: actualPath,
+      preferredPath: pathField,
+      renamed: actualPath !== pathField,
     },
     { status: 201 },
   )

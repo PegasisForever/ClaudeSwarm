@@ -1,25 +1,48 @@
 import { useCallback, useState } from "react"
 import { useDropzone } from "react-dropzone"
+import { getWorkerUploadUrl } from "../lib/worker-urls"
 
 const WORKER_UPLOADS_DIRECTORY = "/home/kasm-user/Uploads"
-const WORKER_UPLOADS_SHELL_DIRECTORY = "~/Uploads"
+
+type UploadableFile = File & {
+  path?: string
+}
+
+type UploadResponse = {
+  actualPath?: unknown
+  error?: unknown
+  path?: unknown
+}
 
 function quoteShellPath(value: string) {
   return `'${value.replaceAll("'", `'\\''`)}'`
 }
 
-function getWorkerUploadUrl(port: number): string {
-  const url = new URL(window.location.href)
-  url.port = `${port}`
-  url.pathname = "/monitor/upload"
-  url.hash = ""
-  url.search = ""
-  return url.toString()
+function normalizeRelativePath(value: string) {
+  return value
+    .replaceAll("\\", "/")
+    .split("/")
+    .filter((segment) => segment.length > 0 && segment !== "." && segment !== "..")
+    .join("/")
+}
+
+function isAbsoluteClientPath(value: string) {
+  return value.startsWith("/") || /^[A-Za-z]:[\\/]/.test(value)
+}
+
+function getPreferredUploadPath(file: UploadableFile) {
+  const relativePath =
+    file.webkitRelativePath ||
+    (file.path && !isAbsoluteClientPath(file.path) ? file.path : "") ||
+    file.name
+
+  const normalizedRelativePath = normalizeRelativePath(relativePath)
+  return `${WORKER_UPLOADS_DIRECTORY}/${normalizedRelativePath || file.name}`
 }
 
 async function readUploadError(response: Response) {
   try {
-    const data = (await response.json()) as { error?: unknown }
+    const data = (await response.json()) as UploadResponse
 
     if (typeof data.error === "string" && data.error.length > 0) {
       return data.error
@@ -29,6 +52,20 @@ async function readUploadError(response: Response) {
   }
 
   return response.statusText || "Failed to upload file"
+}
+
+async function readUploadedPath(response: Response) {
+  const data = (await response.json()) as UploadResponse
+
+  if (typeof data.actualPath === "string" && data.actualPath.length > 0) {
+    return data.actualPath
+  }
+
+  if (typeof data.path === "string" && data.path.length > 0) {
+    return data.path
+  }
+
+  throw new Error("Upload succeeded but the saved path was missing")
 }
 
 type UseWorkerTerminalDropzoneOptions<TTerminalName extends string> = {
@@ -66,13 +103,10 @@ export function useWorkerTerminalDropzone<TTerminalName extends string>({
         const typedPaths: string[] = []
 
         for (const file of files) {
-          const uploadPath = `${WORKER_UPLOADS_DIRECTORY}/${file.name}`
-          const typedPath = quoteShellPath(
-            `${WORKER_UPLOADS_SHELL_DIRECTORY}/${file.name}`,
-          )
+          const preferredPath = getPreferredUploadPath(file as UploadableFile)
           const formData = new FormData()
 
-          formData.set("path", uploadPath)
+          formData.set("path", preferredPath)
           formData.set("file", file, file.name)
           setUploadingFileName(file.name)
 
@@ -85,7 +119,7 @@ export function useWorkerTerminalDropzone<TTerminalName extends string>({
             throw new Error(await readUploadError(response))
           }
 
-          typedPaths.push(typedPath)
+          typedPaths.push(quoteShellPath(await readUploadedPath(response)))
         }
 
         onUploadPathReady(typedPaths, activeTerminal)

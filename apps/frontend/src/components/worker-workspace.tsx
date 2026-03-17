@@ -323,10 +323,10 @@ export function WorkerWorkspace({
                 <p className="text-sm font-medium text-white">
                   {isUploading
                     ? `Uploading ${uploadingFileName ?? "file"}...`
-                    : "Drop files to upload into ~/Uploads"}
+                    : "Drop files to upload"}
                 </p>
                 <p className="mt-1 text-xs text-gray-300">
-                  Uploaded paths will be typed into the active terminal.
+                  The saved paths will be typed into the active terminal.
                 </p>
               </div>
             </div>
