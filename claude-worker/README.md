@@ -77,4 +77,4 @@ docker run --rm -d \
 
 Note: `--privileged` is required for Docker in Docker.
 
-After the container is running, you can access the desktop at `http://localhost:51300/monitor`.
+After the container is running, you can access the desktop at `http://localhost:51300/`.
