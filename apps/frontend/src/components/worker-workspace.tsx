@@ -6,7 +6,12 @@ import {
   ModalFooter,
   ModalHeader,
 } from "@heroui/react"
-import { IconExternalLink, IconTrash } from "@tabler/icons-react"
+import {
+  IconExternalLink,
+  IconPlayerPause,
+  IconPlayerPlay,
+  IconTrash,
+} from "@tabler/icons-react"
 import { useState } from "react"
 import type { WorkerInfo } from "../lib/api-types"
 import { getWorkerIframeUrl } from "../lib/worker-urls"
@@ -14,13 +19,21 @@ import { getWorkerIframeUrl } from "../lib/worker-urls"
 type WorkerWorkspaceState = "active" | "cached" | "unloaded"
 
 type WorkerWorkspaceProps = {
+  isStarting: boolean
+  isStopping: boolean
   onDestroyWorker: (id: string) => Promise<void>
+  onStartWorker: (id: string) => Promise<void>
+  onStopWorker: (id: string) => Promise<void>
   state: WorkerWorkspaceState
   worker: WorkerInfo
 }
 
 export function WorkerWorkspace({
+  isStarting,
+  isStopping,
   onDestroyWorker,
+  onStartWorker,
+  onStopWorker,
   state,
   worker,
 }: WorkerWorkspaceProps) {
@@ -36,6 +49,8 @@ export function WorkerWorkspace({
       ? "pointer-events-auto opacity-100"
       : "pointer-events-none opacity-0"
   const hasWorkerPort = worker.port > 0
+  const isReady = worker.status === "ready"
+  const isStopped = worker.status === "stopped"
   const workerUrl = getWorkerIframeUrl(worker.port)
 
   const handleDestroy = async () => {
@@ -86,9 +101,27 @@ export function WorkerWorkspace({
       <section className={`absolute inset-0 flex flex-col ${hiddenClass}`}>
         <div className="flex items-center justify-end gap-2 border-b border-gray-700 bg-[#282828] px-4 py-3">
           <Button
+            color={isStopped ? "success" : "default"}
+            isLoading={isStarting || isStopping}
+            onPress={() =>
+              void (isStopped ? onStartWorker(worker.id) : onStopWorker(worker.id))
+            }
+            size="sm"
+            startContent={
+              isStopped ? (
+                <IconPlayerPlay size={16} />
+              ) : (
+                <IconPlayerPause size={16} />
+              )
+            }
+            variant="light"
+          >
+            {isStopped ? "Start" : "Pause"}
+          </Button>
+          <Button
             as="a"
             href={workerUrl}
-            isDisabled={!hasWorkerPort}
+            isDisabled={!hasWorkerPort || !isReady}
             rel="noreferrer"
             size="sm"
             startContent={<IconExternalLink size={16} />}
@@ -108,7 +141,7 @@ export function WorkerWorkspace({
           </Button>
         </div>
 
-        {hasWorkerPort ? (
+        {hasWorkerPort && isReady ? (
           <iframe
             allow="clipboard-read; clipboard-write; fullscreen; self"
             allowFullScreen
@@ -116,6 +149,27 @@ export function WorkerWorkspace({
             src={workerUrl}
             title={`${worker.title} code-server`}
           />
+        ) : isStopped ? (
+          <div className="flex h-full items-center justify-center bg-[#282828] px-6">
+            <div className="max-w-md text-center">
+              <p className="text-default-300 text-sm font-medium">
+                Worker is stopped
+              </p>
+              <p className="text-default-500 mt-2 text-xs">
+                Start this worker to relaunch its code-server session and reopen
+                the persisted workspace.
+              </p>
+              <Button
+                className="mt-4"
+                color="success"
+                isLoading={isStarting}
+                onPress={() => void onStartWorker(worker.id)}
+                startContent={<IconPlayerPlay size={16} />}
+              >
+                Start worker
+              </Button>
+            </div>
+          </div>
         ) : (
           <div className="flex h-full items-center justify-center bg-[#282828] px-6">
             <div className="max-w-md text-center">

@@ -1,5 +1,6 @@
 import { TRPCError, initTRPC } from "@trpc/server"
 import { z } from "zod"
+import { startManagedWorkerContainer, stopManagedWorkerContainer } from "./control-worker"
 import { destroyWorkerContainer } from "./destroy-worker"
 import { listWorkers } from "./list-workers"
 import { startWorkerContainer } from "./start-worker"
@@ -97,6 +98,55 @@ export const appRouter = router({
   workers: publicProcedure.output(workersSchema).query(async () => {
     return listWorkers()
   }),
+  stopWorker: publicProcedure
+    .input(
+      z.object({
+        id: z.string(),
+      }),
+    )
+    .output(z.void())
+    .mutation(async ({ input }) => {
+      try {
+        await stopManagedWorkerContainer(input.id)
+        return undefined
+      } catch (error) {
+        console.error("[stopWorker] failed to stop worker", error)
+
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message:
+            error instanceof Error ? error.message : "Failed to stop worker",
+          cause: error,
+        })
+      }
+    }),
+  startExistingWorker: publicProcedure
+    .input(
+      z.object({
+        id: z.string(),
+      }),
+    )
+    .output(
+      z.object({
+        id: z.string(),
+        port: z.number(),
+        healthy: z.boolean(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      try {
+        return await startManagedWorkerContainer(input.id)
+      } catch (error) {
+        console.error("[startExistingWorker] failed to start worker", error)
+
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message:
+            error instanceof Error ? error.message : "Failed to start worker",
+          cause: error,
+        })
+      }
+    }),
   destroyWorker: publicProcedure
     .input(
       z.object({

@@ -44,6 +44,8 @@ You can now configure `GITHUB_TOKEN` once from the dashboard's global settings. 
 
 Each worker now exposes a single `code-server` web IDE on its published port. The dashboard embeds that IDE directly instead of showing a desktop/VNC session or custom terminal panes.
 
+Workers are persistent Docker containers until you explicitly destroy them. From the dashboard you can pause a worker without deleting its workspace and start it again later from the same UI.
+
 When creating a worker from the dashboard, you can optionally provide a repository URL. The worker will clone that repository on first boot and open `code-server` directly in the cloned directory.
 
 The worker image is Nix-based and declares its toolchain in [`agent-worker/flake.nix`](/Users/jiucheng/Dev/AgentSwarm/agent-worker/flake.nix). The pinned package set lives in [`agent-worker/flake.lock`](/Users/jiucheng/Dev/AgentSwarm/agent-worker/flake.lock).

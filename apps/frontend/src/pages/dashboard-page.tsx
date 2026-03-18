@@ -44,6 +44,8 @@ export function DashboardPage() {
     staleTime: Number.POSITIVE_INFINITY,
   })
   const destroyWorker = trpc.destroyWorker.useMutation()
+  const startExistingWorker = trpc.startExistingWorker.useMutation()
+  const stopWorker = trpc.stopWorker.useMutation()
   const prevStatusById = useRef<Map<string, string>>(new Map())
 
   useEffect(() => {
@@ -101,11 +103,30 @@ export function DashboardPage() {
     void navigate("/")
   }
 
+  const handleStartWorker = async (id: string) => {
+    await startExistingWorker.mutateAsync({ id })
+    await workersQuery.refetch()
+  }
+
+  const handleStopWorker = async (id: string) => {
+    await stopWorker.mutateAsync({ id })
+    await workersQuery.refetch()
+  }
+
   return (
     <>
       <div className="bg-background text-foreground flex min-h-screen">
         <WorkerSidebar
           globalSettings={globalSettings}
+          isStartingWorker={(id) =>
+            startExistingWorker.isPending &&
+            startExistingWorker.variables?.id === id
+          }
+          isStoppingWorker={(id) =>
+            stopWorker.isPending && stopWorker.variables?.id === id
+          }
+          onStartWorker={handleStartWorker}
+          onStopWorker={handleStopWorker}
           presets={presets}
           workers={workers}
           hierarchy={hierarchy}
@@ -116,8 +137,17 @@ export function DashboardPage() {
             {activeId && availableIds.has(activeId) ? (
               workers.map((worker) => (
                 <WorkerWorkspace
+                  isStarting={
+                    startExistingWorker.isPending &&
+                    startExistingWorker.variables?.id === worker.id
+                  }
+                  isStopping={
+                    stopWorker.isPending && stopWorker.variables?.id === worker.id
+                  }
                   key={worker.id}
                   onDestroyWorker={handleDestroyWorker}
+                  onStartWorker={handleStartWorker}
+                  onStopWorker={handleStopWorker}
                   state={getWorkerState(worker.id)}
                   worker={worker}
                 />

@@ -11,6 +11,8 @@ RUN mkdir -p /etc/nix \
     && printf '%s\n' \
       'experimental-features = nix-command flakes' \
       'build-users-group =' \
+      'trusted-users = root kasm-user' \
+      'allowed-users = *' \
       > /etc/nix/nix.conf
 
 COPY agent-worker/flake.nix agent-worker/flake.lock /tmp/agent-worker/
@@ -27,6 +29,9 @@ RUN printf '%s\n' \
       'docker:x:1001:kasm-user' \
       > /etc/group
 
+RUN mkdir -p /usr/local/bin \
+    && ln -sf /root/.nix-profile/bin/nix-daemon /usr/local/bin/nix-daemon
+
 RUN mkdir -p "$NPM_CONFIG_PREFIX" \
     && nix --extra-experimental-features "nix-command flakes" shell --accept-flake-config /tmp/agent-worker#nodejs --command \
       npm install -g --unsafe-perm --prefix "$NPM_CONFIG_PREFIX" "@openai/codex@${CODEX_VERSION}" \
@@ -42,8 +47,10 @@ COPY --chown=1000:1000 agent-worker/orchestrator.py /home/kasm-user/orchestrator
 COPY agent-worker/docker-entrypoint.sh /usr/local/bin/agent-worker-entrypoint
 
 RUN chmod +x /home/kasm-user/orchestrator.py /usr/local/bin/agent-worker-entrypoint \
-    && mkdir -p /home/kasm-user/.local/share/code-server/User /home/kasm-user/Desktop /home/kasm-user/Downloads /home/kasm-user/Uploads /home/kasm-user/workers \
-    && chown -R 1000:1000 /home/kasm-user
+    && mkdir -p /home/kasm-user/.cache/nix /home/kasm-user/.local/share/code-server/User /home/kasm-user/Desktop /home/kasm-user/Downloads /home/kasm-user/Uploads /home/kasm-user/workers \
+    && mkdir -p /nix/store /nix/var/log/nix /nix/var/nix/builds /nix/var/nix/db /nix/var/nix/daemon-socket /nix/var/nix/gcroots /nix/var/nix/profiles /nix/var/nix/temproots \
+    && chown -R 1000:1000 /home/kasm-user /etc/nix /nix/var/nix/builds /nix/var/nix/db /nix/var/nix/gcroots /nix/var/nix/profiles /nix/var/nix/temproots /nix/var/log/nix \
+    && chown 1000:1000 /nix/store /nix /nix/var /nix/var/nix
 
 ENV CODEX_WORKER=1
 

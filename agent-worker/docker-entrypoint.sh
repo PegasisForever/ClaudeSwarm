@@ -8,9 +8,13 @@ CODE_SERVER_PORT="${CODE_SERVER_PORT:-51300}"
 STARTUP_REPO_URL="${STARTUP_REPO_URL:-}"
 BASH_BIN="$(readlink -f "$(command -v bash)")"
 SETPRIV_BIN="$(readlink -f "$(command -v setpriv)")"
+NIX_DAEMON_BIN="$(readlink -f "$(command -v nix-daemon)")"
 
 mkdir -p /var/run /var/lib/docker
 chown -R 1000:1000 "$HOME_DIR"
+
+"$NIX_DAEMON_BIN" >/tmp/nix-daemon.log 2>&1 &
+NIX_DAEMON_PID=$!
 
 dockerd \
   --host=unix:///var/run/docker.sock \
@@ -19,6 +23,11 @@ dockerd \
 DOCKERD_PID=$!
 
 cleanup() {
+  if kill -0 "$NIX_DAEMON_PID" >/dev/null 2>&1; then
+    kill "$NIX_DAEMON_PID" >/dev/null 2>&1 || true
+    wait "$NIX_DAEMON_PID" 2>/dev/null || true
+  fi
+
   if kill -0 "$DOCKERD_PID" >/dev/null 2>&1; then
     kill "$DOCKERD_PID" >/dev/null 2>&1 || true
     wait "$DOCKERD_PID" 2>/dev/null || true
@@ -46,6 +55,7 @@ exec "$SETPRIV_BIN" \
   --init-groups \
   env \
   HOME="$HOME_DIR" \
+  NIX_REMOTE=daemon \
   USER="kasm-user" \
   WORKSPACE_DIR="$WORKSPACE_DIR" \
   STARTUP_REPO_URL="$STARTUP_REPO_URL" \
