@@ -45,6 +45,7 @@
             gnused
             iptables
             nodejs_22
+            ncurses
             openssh
             procps
             python3

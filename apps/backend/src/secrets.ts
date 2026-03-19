@@ -72,6 +72,10 @@ export function saveGlobalSettings(input: {
 export function getWorkerSecretEnv() {
   const env: Record<string, string> = {}
 
+  if (process.env.OPENAI_API_KEY) {
+    env.OPENAI_API_KEY = process.env.OPENAI_API_KEY
+  }
+
   if (secretStore.githubToken) {
     env.GITHUB_TOKEN = secretStore.githubToken
   }

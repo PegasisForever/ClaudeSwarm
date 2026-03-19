@@ -56,14 +56,24 @@ function getOneShotEnabled() {
 function buildAgentCommand() {
   const prompt = getPrompt()
   const promptArg = prompt ? ` ${shellEscape(prompt)}` : ""
-  const loginCommand =
-    'if codex login status >/tmp/codex-login-status.log 2>&1; then cat /tmp/codex-login-status.log >/dev/null; elif [ -n "${OPENAI_API_KEY:-}" ]; then printenv OPENAI_API_KEY | codex login --with-api-key >/tmp/codex-login.log 2>&1 || { cat /tmp/codex-login.log; exit 1; }; else cat /tmp/codex-login-status.log; fi'
+  const authCommand =
+    'AUTH_READY=0; ' +
+    'if codex login status >/tmp/codex-login-status.log 2>&1; then ' +
+    "AUTH_READY=1; " +
+    'elif [ -n "${OPENAI_API_KEY:-}" ]; then ' +
+    'if printenv OPENAI_API_KEY | codex login --with-api-key >/tmp/codex-login.log 2>&1; then ' +
+    "AUTH_READY=1; " +
+    "else " +
+    "cat /tmp/codex-login.log; " +
+    "fi; " +
+    "fi"
+  const authReadyCheck = '[ "${AUTH_READY:-0}" = "1" ]'
 
   if (getOneShotEnabled()) {
-    return `${loginCommand}; codex --search exec --skip-git-repo-check --dangerously-bypass-approvals-and-sandbox -o /tmp/codex-output.txt${promptArg}; status=$?; if [ -f /tmp/codex-output.txt ]; then cat /tmp/codex-output.txt | ~/orchestrator.py set-worker-output; fi; ~/orchestrator.py destroy-worker; exit $status`
+    return `${authCommand}; if ${authReadyCheck}; then codex --search exec --skip-git-repo-check --dangerously-bypass-approvals-and-sandbox -o /tmp/codex-output.txt${promptArg}; status=$?; if [ -f /tmp/codex-output.txt ]; then cat /tmp/codex-output.txt | ~/orchestrator.py set-worker-output; fi; ~/orchestrator.py destroy-worker; exit $status; else echo "Codex is not authenticated. Run '\''codex login'\'' in this session, or provide OPENAI_API_KEY."; exec "$SHELL" -l; fi`
   }
 
-  return `${loginCommand}; exec codex --dangerously-bypass-approvals-and-sandbox --search${promptArg}`
+  return `${authCommand}; if ! ${authReadyCheck}; then echo "Codex is not authenticated. You can run codex login in this session if needed."; fi; exec codex --dangerously-bypass-approvals-and-sandbox --search${promptArg}`
 }
 
 async function launchAgentSession() {

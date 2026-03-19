@@ -48,6 +48,10 @@ DOCKER_ARGS=(
   -v "${CONTAINER_NAME}-data:/app/data"
 )
 
+if [ -n "${OPENAI_API_KEY:-}" ]; then
+  DOCKER_ARGS+=(-e "OPENAI_API_KEY=$OPENAI_API_KEY")
+fi
+
 if [ -f "$CONFIG_FILE" ]; then
   DOCKER_ARGS+=(-v "$CONFIG_FILE:/app/config.json")
 fi
