@@ -90,13 +90,15 @@ Important: you are the manager, you do not access any document or code, you tell
 
 Phase 1: Write Plans
 
+(N starts with 0)
+
 1. expect a freshly cloned github repo at your cwd, and user provided requirements given to you
 2. remember the current branch name, create and switch to new branch
 3. create an empty commit, create a draft pr to the branch before the switch, remember the pr number of the draft pr as <pr-number>
 4. you write user provided requirements to docs/pr/<pr-number>/plan/user-provided-requirements.md
 5. commit and push
-6. (N starts with 0) N=N+1
-7. run `planner` with input "a" if N==1, otherwise with input "b"
+6. N=N+1
+7. run `planner` with input "a" if N==1, with input "d" if coming from phase 2, otherwise with input "b"
 8. run `prd-critic` and `architecture-critic` in parallel
 9. commit "plan revision N" and push
 10. if both `prd-critic` and `architecture-critic` gives pass, or N==3, go to next step; otherwise, go to step 6
@@ -114,21 +116,16 @@ Phase 1: Write Plans
 
 Phase 2: Iterate Implementation
 
-1. (M starts with 0) M=M+1
+(M starts with 0)
+
+1. M=M+1
 2. run `distributor`
 3. run `shallow-reviewer`
 4. if `shallow-reviewer` gives a fail: go to step 1; else: go to next step
 5. run `deep-reviewer`
-6. if `deep-reviewer` gives pass or M==10, go to step 14; if `deep-reviewer` gives fail: go to step 1; if `deep-reviewer` gives plan-conflict, go to next step
-7. N=N+1
-8. run `planner` with input "d" with the file path to docs/pr/<pr-number>/iteration-<M>/deep-review/deep-review.md
-9. run `prd-critic` and `architecture-critic` in parallel
-10. if both `prd-critic` and `architecture-critic` gives pass, go to step 12; otherwise, go to next step
-11. run `planner` with input "b"
-12. commit "plan revision <N>" and push
-13. go to step 1
-14. run `pr-finalizer`
-15. notify the user
+6. if `deep-reviewer` gives pass or M==10, go to next step; if `deep-reviewer` gives fail: go to step 1; if `deep-reviewer` gives plan-conflict, go to phase 1 step 6
+7. run `pr-finalizer`
+8. notify the user
 
 
 When writing down user provided requirements or reviews, break it down into numbered lists
