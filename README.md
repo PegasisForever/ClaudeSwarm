@@ -1,5 +1,9 @@
 # AgentSwarm
 
+[![Docker](https://github.com/zangjiucheng/AgentSwarm/actions/workflows/docker.yml/badge.svg)](https://github.com/zangjiucheng/AgentSwarm/actions/workflows/docker.yml)
+[![Docker Ready](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](#run)
+[![Nix Worker](https://img.shields.io/badge/Nix-worker-5277C3?logo=nixos&logoColor=white)](./agent-worker/flake.nix)
+
 ## Run
 
 Build the images:
@@ -13,6 +17,8 @@ Or build and start everything in one step:
 ```bash
 ./run.sh
 ```
+
+GitHub Actions now builds both Docker images on every push. Pushes to the repository publish multi-arch images to `ghcr.io/zangjiucheng/agentswarm` and `ghcr.io/zangjiucheng/agentswarm-worker`. Pull requests run the same builds without publishing.
 
 By default, `./run.sh` preserves existing worker containers. If you explicitly want to remove existing workers before rebuilding the worker image, use:
 
@@ -50,7 +56,7 @@ When you create a worker from the UI, the default image tag is `agent-worker:lat
 
 `GITHUB_TOKEN` is also optional. GitHub-specific operations such as PR inspection or authenticated remote access will only work when a token is available.
 
-You can configure `GITHUB_USERNAME` and `GITHUB_TOKEN` from the dashboard's global settings. They are stored in AgentSwarm's own persistent data volume, not in [`apps/backend/config.json`](/Users/jiucheng/Dev/AgentSwarm/apps/backend/config.json), and are injected into newly created workers automatically.
+You can configure `GITHUB_USERNAME` and `GITHUB_TOKEN` from the dashboard's global settings. They are stored in AgentSwarm's own persistent data volume, not in [`apps/backend/config.json`](./apps/backend/config.json), and are injected into newly created workers automatically.
 
 Each worker now exposes a single `code-server` web IDE on its published port. The dashboard embeds that IDE directly instead of showing a desktop/VNC session or custom terminal panes.
 
@@ -64,7 +70,7 @@ When creating a worker from the dashboard, you can optionally provide a reposito
 
 For GitHub repositories, a configured `GITHUB_TOKEN` is also used for the initial clone. This means private GitHub repos can be cloned at worker startup without requiring an SSH key inside the worker.
 
-The worker image is Nix-based and declares its toolchain in [`agent-worker/flake.nix`](/Users/jiucheng/Dev/AgentSwarm/agent-worker/flake.nix). The pinned package set lives in [`agent-worker/flake.lock`](/Users/jiucheng/Dev/AgentSwarm/agent-worker/flake.lock).
+The worker image is Nix-based and declares its toolchain in [`agent-worker/flake.nix`](./agent-worker/flake.nix). The pinned package set lives in [`agent-worker/flake.lock`](./agent-worker/flake.lock).
 
 Preset suggestions included in the default config:
 
