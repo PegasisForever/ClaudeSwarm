@@ -13,11 +13,14 @@ NIX_DAEMON_BIN="$(readlink -f "$(command -v nix-daemon)")"
 BUN_BIN="$(readlink -f "$(command -v bun)")"
 MONITOR_SCRIPT="/usr/local/bin/monitor.js"
 BUN_PTY_LIB=""
+ARCH="$(uname -m)"
 
-if [ -f /usr/local/lib/bun-pty/librust_pty_arm64.so ]; then
+if [ "$ARCH" = "aarch64" ] && [ -f /usr/local/lib/bun-pty/librust_pty_arm64.so ]; then
   BUN_PTY_LIB="/usr/local/lib/bun-pty/librust_pty_arm64.so"
 elif [ -f /usr/local/lib/bun-pty/librust_pty.so ]; then
   BUN_PTY_LIB="/usr/local/lib/bun-pty/librust_pty.so"
+elif [ -f /usr/local/lib/bun-pty/librust_pty_arm64.so ]; then
+  BUN_PTY_LIB="/usr/local/lib/bun-pty/librust_pty_arm64.so"
 fi
 
 mkdir -p /var/run /var/lib/docker
