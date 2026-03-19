@@ -32,7 +32,9 @@ RUN mkdir -p /etc/nix \
 
 COPY agent-worker/flake.nix agent-worker/flake.lock /tmp/agent-worker/
 
-RUN nix profile add --profile "$WORKER_PROFILE" --accept-flake-config /tmp/agent-worker
+# QEMU-based multi-arch builds in GitHub Actions can reject Nix's seccomp filter setup.
+RUN NIX_CONFIG='filter-syscalls = false' \
+    nix profile add --profile "$WORKER_PROFILE" --accept-flake-config /tmp/agent-worker
 
 RUN printf '%s\n' \
       'root:x:0:0:System administrator:/root:/nix/var/nix/profiles/agentswarm-worker/bin/sh' \
