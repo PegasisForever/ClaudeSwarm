@@ -32,6 +32,7 @@ docker run -d \
   -e PORT=14000 \
   -p 14000:14000 \
   -v /var/run/docker.sock:/var/run/docker.sock \
+  -v agentswarm-data:/app/data \
   -v "$(pwd)/apps/backend/config.json:/app/config.json" \
   agent-swarm:latest
 ```
@@ -39,6 +40,7 @@ docker run -d \
 Then open `http://localhost:14000`.
 
 The runtime image already includes a default config, so mounting [`/apps/backend/config.json`](./apps/backend/config.json) is optional unless you want to override it.
+The backend secret store is persisted under `/app/data`, so keep that path on a Docker volume if you want GitHub accounts and other stored settings to survive container rebuilds.
 
 When you create a worker from the UI, the default image tag is `agent-worker:latest`. The required env vars are:
 

@@ -1,14 +1,28 @@
+import { randomUUID } from "node:crypto"
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs"
 import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import z from "zod"
 
-const SecretStoreSchema = z.object({
-  githubToken: z.string().default(""),
-  githubUsername: z.string().default(""),
+const GithubAccountSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  token: z.string(),
+  username: z.string(),
 })
 
+const SecretStoreSchema = z.object({
+  defaultGithubAccountId: z.string().default(""),
+  githubAccounts: z.array(GithubAccountSchema).default([]),
+  githubToken: z.string().default(""),
+  githubUsername: z.string().default(""),
+  workerGithubAccountIds: z.record(z.string(), z.string()).default({}),
+})
+
+type GithubAccount = z.infer<typeof GithubAccountSchema>
 type SecretStore = z.infer<typeof SecretStoreSchema>
+
+export type GithubAccountPublic = Omit<GithubAccount, "token">
 
 function readEnv(name: string, fallback?: string) {
   return process.env[name] ?? fallback
@@ -21,15 +35,59 @@ const secretStorePath =
 
 let secretStore: SecretStore = loadSecretStore()
 
+function toPublicGithubAccount(account: GithubAccount): GithubAccountPublic {
+  return {
+    id: account.id,
+    name: account.name,
+    username: account.username,
+  }
+}
+
+function normalizeSecretStore(store: SecretStore): SecretStore {
+  const githubAccounts = [...store.githubAccounts]
+  const seenIds = new Set(githubAccounts.map((account) => account.id))
+
+  if (githubAccounts.length === 0 && store.githubToken.trim().length > 0) {
+    const legacyId = "legacy-default"
+    githubAccounts.push({
+      id: legacyId,
+      name: store.githubUsername.trim() || "Default GitHub account",
+      token: store.githubToken,
+      username: store.githubUsername.trim(),
+    })
+    seenIds.add(legacyId)
+  }
+
+  const filteredWorkerGithubAccountIds = Object.fromEntries(
+    Object.entries(store.workerGithubAccountIds).filter(([, accountId]) =>
+      seenIds.has(accountId),
+    ),
+  )
+
+  const defaultGithubAccountId = seenIds.has(store.defaultGithubAccountId)
+    ? store.defaultGithubAccountId
+    : githubAccounts[0]?.id ?? ""
+
+  return {
+    defaultGithubAccountId,
+    githubAccounts,
+    githubToken: "",
+    githubUsername: "",
+    workerGithubAccountIds: filteredWorkerGithubAccountIds,
+  }
+}
+
 function loadSecretStore() {
   try {
     if (!existsSync(secretStorePath)) {
       return SecretStoreSchema.parse({})
     }
 
-    return SecretStoreSchema.parse(
+    const parsed = SecretStoreSchema.parse(
       JSON.parse(readFileSync(secretStorePath, "utf-8")),
     )
+
+    return normalizeSecretStore(parsed)
   } catch (error) {
     console.warn("Failed to read secret store, using defaults:", error)
     return SecretStoreSchema.parse({})
@@ -42,11 +100,91 @@ function persistSecretStore(nextSecretStore: SecretStore) {
   secretStore = nextSecretStore
 }
 
-export function getGlobalSettings() {
-  return {
-    githubUsername: secretStore.githubUsername,
-    githubTokenConfigured: secretStore.githubToken.length > 0,
+function getGithubAccountById(accountId?: string) {
+  if (!accountId) {
+    return undefined
   }
+
+  return secretStore.githubAccounts.find((account) => account.id === accountId)
+}
+
+export function getGithubAccountCredentials(accountId?: string) {
+  const account = getGithubAccountById(accountId)
+
+  if (!account) {
+    return undefined
+  }
+
+  return account
+}
+
+function getDefaultGithubAccount() {
+  return getGithubAccountById(secretStore.defaultGithubAccountId)
+}
+
+export function getStoredGithubAccountIdForWorker(workerId: string) {
+  return secretStore.workerGithubAccountIds[workerId]
+}
+
+export function getEffectiveGithubAccountForWorker(workerId: string) {
+  const explicitAccountId = getStoredGithubAccountIdForWorker(workerId)
+  const explicitAccount = getGithubAccountById(explicitAccountId)
+  const defaultAccount = getDefaultGithubAccount()
+  const account = explicitAccount ?? defaultAccount
+
+  return {
+    account,
+    accountId: account?.id,
+    githubConfigured: Boolean(account),
+    githubUsername: account?.username ?? "",
+    usesDefaultGithubAccount: explicitAccount === undefined,
+  }
+}
+
+export function getGlobalSettings() {
+  const defaultAccount = getDefaultGithubAccount()
+
+  return {
+    defaultGithubAccountId: defaultAccount?.id ?? null,
+    githubAccounts: secretStore.githubAccounts.map(toPublicGithubAccount),
+    githubTokenConfigured: secretStore.githubAccounts.length > 0,
+    githubUsername: defaultAccount?.username ?? "",
+  }
+}
+
+export function saveGithubAccount(input: {
+  id?: string
+  name: string
+  token: string
+  username: string
+}) {
+  const id = input.id?.trim() || randomUUID()
+  const nextAccount: GithubAccount = {
+    id,
+    name: input.name.trim() || input.username.trim(),
+    token: input.token.trim(),
+    username: input.username.trim(),
+  }
+
+  const existingIndex = secretStore.githubAccounts.findIndex(
+    (account) => account.id === id,
+  )
+  const nextGithubAccounts =
+    existingIndex >= 0
+      ? secretStore.githubAccounts.map((account, index) =>
+          index === existingIndex ? nextAccount : account,
+        )
+      : [...secretStore.githubAccounts, nextAccount]
+
+  const nextSecretStore = normalizeSecretStore({
+    ...secretStore,
+    defaultGithubAccountId:
+      secretStore.defaultGithubAccountId || nextAccount.id,
+    githubAccounts: nextGithubAccounts,
+  })
+
+  persistSecretStore(nextSecretStore)
+  return getGlobalSettings()
 }
 
 export function saveGlobalSettings(input: {
@@ -54,34 +192,146 @@ export function saveGlobalSettings(input: {
   githubToken?: string
   clearGithubToken?: boolean
 }) {
-  const nextSecretStore: SecretStore = {
-    ...secretStore,
-    githubUsername: input.githubUsername,
-  }
+  const defaultAccount = getDefaultGithubAccount()
 
   if (input.clearGithubToken) {
-    nextSecretStore.githubToken = ""
-  } else if (input.githubToken) {
-    nextSecretStore.githubToken = input.githubToken
+    if (defaultAccount) {
+      return deleteGithubAccount(defaultAccount.id)
+    }
+
+    return getGlobalSettings()
   }
+
+  if (input.githubToken?.trim()) {
+    return saveGithubAccount({
+      id: defaultAccount?.id,
+      name:
+        defaultAccount?.name ||
+        input.githubUsername.trim() ||
+        "Default GitHub account",
+      token: input.githubToken,
+      username: input.githubUsername,
+    })
+  }
+
+  if (defaultAccount && input.githubUsername.trim()) {
+    return saveGithubAccount({
+      id: defaultAccount.id,
+      name: defaultAccount.name,
+      token: defaultAccount.token,
+      username: input.githubUsername,
+    })
+  }
+
+  return getGlobalSettings()
+}
+
+export function deleteGithubAccount(accountId: string) {
+  const nextSecretStore = normalizeSecretStore({
+    ...secretStore,
+    defaultGithubAccountId:
+      secretStore.defaultGithubAccountId === accountId
+        ? ""
+        : secretStore.defaultGithubAccountId,
+    githubAccounts: secretStore.githubAccounts.filter(
+      (account) => account.id !== accountId,
+    ),
+  })
 
   persistSecretStore(nextSecretStore)
   return getGlobalSettings()
 }
 
-export function getWorkerSecretEnv() {
+export function setDefaultGithubAccount(accountId: string) {
+  if (!getGithubAccountById(accountId)) {
+    throw new Error(`Unknown GitHub account: ${accountId}`)
+  }
+
+  const nextSecretStore = normalizeSecretStore({
+    ...secretStore,
+    defaultGithubAccountId: accountId,
+  })
+
+  persistSecretStore(nextSecretStore)
+  return getGlobalSettings()
+}
+
+export function assignWorkerGithubAccount(input: {
+  accountId?: string
+  workerId: string
+}) {
+  if (input.accountId && !getGithubAccountById(input.accountId)) {
+    throw new Error(`Unknown GitHub account: ${input.accountId}`)
+  }
+
+  const workerGithubAccountIds = { ...secretStore.workerGithubAccountIds }
+
+  if (input.accountId) {
+    workerGithubAccountIds[input.workerId] = input.accountId
+  } else {
+    delete workerGithubAccountIds[input.workerId]
+  }
+
+  const nextSecretStore = normalizeSecretStore({
+    ...secretStore,
+    workerGithubAccountIds,
+  })
+
+  persistSecretStore(nextSecretStore)
+  return getEffectiveGithubAccountForWorker(input.workerId)
+}
+
+export function transferWorkerGithubAccount(oldWorkerId: string, newWorkerId: string) {
+  const nextSecretStore = {
+    ...secretStore,
+    workerGithubAccountIds: { ...secretStore.workerGithubAccountIds },
+  }
+  const accountId = nextSecretStore.workerGithubAccountIds[oldWorkerId]
+
+  if (accountId) {
+    nextSecretStore.workerGithubAccountIds[newWorkerId] = accountId
+  }
+
+  delete nextSecretStore.workerGithubAccountIds[oldWorkerId]
+  persistSecretStore(normalizeSecretStore(nextSecretStore))
+}
+
+export function clearWorkerGithubAccount(workerId: string) {
+  if (!secretStore.workerGithubAccountIds[workerId]) {
+    return
+  }
+
+  const nextSecretStore = {
+    ...secretStore,
+    workerGithubAccountIds: { ...secretStore.workerGithubAccountIds },
+  }
+
+  delete nextSecretStore.workerGithubAccountIds[workerId]
+  persistSecretStore(normalizeSecretStore(nextSecretStore))
+}
+
+export function getWorkerSecretEnv(options?: {
+  accountId?: string
+  workerId?: string
+}) {
   const env: Record<string, string> = {}
 
   if (process.env.OPENAI_API_KEY) {
     env.OPENAI_API_KEY = process.env.OPENAI_API_KEY
   }
 
-  if (secretStore.githubToken) {
-    env.GITHUB_TOKEN = secretStore.githubToken
+  const account =
+    getGithubAccountById(options?.accountId) ??
+    (options?.workerId
+      ? getEffectiveGithubAccountForWorker(options.workerId).account
+      : getDefaultGithubAccount())
+
+  if (account?.token) {
+    env.GITHUB_TOKEN = account.token
   }
 
-  if (secretStore.githubUsername) {
-    env.GITHUB_USERNAME = secretStore.githubUsername
+  if (account?.username) {
+    env.GITHUB_USERNAME = account.username
   }
 
   return env

@@ -60,6 +60,8 @@ export function DashboardPage() {
   const hierarchy = workersQuery.data?.hierarchy ?? EMPTY_HIERARCHY
   const presets = presetsQuery.data ?? []
   const globalSettings = globalSettingsQuery.data ?? {
+    defaultGithubAccountId: null,
+    githubAccounts: [],
     githubUsername: "",
     githubTokenConfigured: false,
   }
@@ -159,6 +161,7 @@ export function DashboardPage() {
             {activeId && availableIds.has(activeId) ? (
               workers.map((worker) => (
                 <WorkerWorkspace
+                  globalSettings={globalSettings}
                   isReplacing={
                     replaceWorker.isPending && replaceWorker.variables?.id === worker.id
                   }

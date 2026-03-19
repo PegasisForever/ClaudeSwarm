@@ -14,6 +14,7 @@ import {
 } from "./worker-container"
 import { port } from "./config"
 import { getWorkerSecretEnv } from "./secrets"
+import { applyGithubAccountToWorker } from "./worker-github"
 
 const SHARED_MEMORY_BYTES = 1024 * 1024 * 1024
 const MEMORY_LIMIT_BYTES = 8 * 1024 * 1024 * 1024
@@ -26,6 +27,7 @@ type StartWorkerParams = {
   title: string
   preset: string
   env: Record<string, string>
+  githubAccountId?: string
   cloneRepositoryUrl?: string
   labels?: Record<string, string>
   workspaceVolumeName?: string
@@ -134,6 +136,7 @@ export async function startWorkerContainer({
   title,
   preset,
   env,
+  githubAccountId,
   cloneRepositoryUrl,
   labels,
   workspaceVolumeName,
@@ -156,7 +159,7 @@ export async function startWorkerContainer({
     selfIp !== undefined
       ? { ORCHESTRATOR_ADDRESS: selfIp, ORCHESTRATOR_PORT: String(port) }
       : {}
-  const secretEnv = getWorkerSecretEnv()
+  const secretEnv = getWorkerSecretEnv({ accountId: githubAccountId })
   const mergedEnv = {
     ...orchestratorEnv,
     ...selectedPreset.presetEnv,
@@ -217,6 +220,12 @@ export async function startWorkerContainer({
       healthy = true
     } catch (error) {
       console.error("[startWorker] worker is reachable but not healthy yet", error)
+    }
+
+    try {
+      await applyGithubAccountToWorker(container.id, { accountId: githubAccountId })
+    } catch (error) {
+      console.error("[startWorker] failed to apply GitHub account to worker", error)
     }
 
     return { id: container.id, port, healthy }

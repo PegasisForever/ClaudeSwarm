@@ -23,38 +23,63 @@ export function GlobalSettingsModal({
   settings,
 }: GlobalSettingsModalProps) {
   const utils = trpc.useUtils()
-  const [githubUsernameDraft, setGithubUsernameDraft] = useState<string | null>(
-    null,
-  )
+  const [accountName, setAccountName] = useState("")
+  const [githubUsername, setGithubUsername] = useState("")
   const [githubToken, setGithubToken] = useState("")
 
-  const githubUsername = githubUsernameDraft ?? settings.githubUsername
+  const refreshQueries = async () => {
+    await Promise.all([
+      utils.globalSettings.invalidate(),
+      utils.workers.invalidate(),
+    ])
+  }
 
-  const saveGlobalSettings = trpc.saveGlobalSettings.useMutation({
+  const saveGithubAccount = trpc.saveGithubAccount.useMutation({
     onSuccess: async () => {
-      setGithubUsernameDraft(null)
+      setAccountName("")
+      setGithubUsername("")
       setGithubToken("")
-      await utils.globalSettings.invalidate()
-      onOpenChange(false)
+      await refreshQueries()
     },
   })
 
+  const deleteGithubAccount = trpc.deleteGithubAccount.useMutation({
+    onSuccess: refreshQueries,
+  })
+
+  const setDefaultGithubAccount = trpc.setDefaultGithubAccount.useMutation({
+    onSuccess: refreshQueries,
+  })
+
+  const resetState = () => {
+    setAccountName("")
+    setGithubUsername("")
+    setGithubToken("")
+    saveGithubAccount.reset()
+    deleteGithubAccount.reset()
+    setDefaultGithubAccount.reset()
+  }
+
   const handleOpenChange = (open: boolean) => {
     if (!open) {
-      setGithubUsernameDraft(null)
-      setGithubToken("")
-      saveGlobalSettings.reset()
+      resetState()
     }
 
     onOpenChange(open)
   }
 
-  const hasChanges = useMemo(() => {
+  const canAddAccount = useMemo(() => {
     return (
-      githubUsername.trim() !== settings.githubUsername ||
+      accountName.trim().length > 0 &&
+      githubUsername.trim().length > 0 &&
       githubToken.trim().length > 0
     )
-  }, [githubToken, githubUsername, settings.githubUsername])
+  }, [accountName, githubToken, githubUsername])
+
+  const errorMessage =
+    saveGithubAccount.error?.message ??
+    deleteGithubAccount.error?.message ??
+    setDefaultGithubAccount.error?.message
 
   return (
     <Modal
@@ -62,79 +87,135 @@ export function GlobalSettingsModal({
       isOpen={isOpen}
       onOpenChange={handleOpenChange}
       placement="top-center"
-      size="lg"
+      size="2xl"
     >
       <ModalContent>
         {(close) => (
           <>
-            <ModalHeader>Global Settings</ModalHeader>
-            <ModalBody className="gap-4">
-              <Input
-                description="Used for GitHub HTTPS authentication when cloning repos with a personal access token."
-                label="GitHub Username"
-                onValueChange={setGithubUsernameDraft}
-                placeholder="your-github-handle"
-                value={githubUsername}
-              />
+            <ModalHeader>GitHub Accounts</ModalHeader>
+            <ModalBody className="gap-5">
+              <div className="space-y-3">
+                {settings.githubAccounts.length > 0 ? (
+                  settings.githubAccounts.map((account) => {
+                    const isDefault =
+                      settings.defaultGithubAccountId === account.id
 
-              <Input
-                description="Applied to newly created workers and stored in backend config."
-                label="GitHub Token"
-                onValueChange={setGithubToken}
-                placeholder={
-                  settings.githubTokenConfigured
-                    ? "A token is already configured. Enter a new one to replace it."
-                    : "ghp_..."
-                }
-                type="password"
-                value={githubToken}
-              />
+                    return (
+                      <div
+                        className="flex items-center justify-between gap-4 rounded-lg border border-default-200 px-4 py-3"
+                        key={account.id}
+                      >
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-default-800">
+                            {account.name}
+                          </p>
+                          <p className="text-default-500 text-xs">
+                            @{account.username}
+                            {isDefault ? " · default" : ""}
+                          </p>
+                        </div>
+                        <div className="flex shrink-0 gap-2">
+                          <Button
+                            isDisabled={isDefault}
+                            isLoading={
+                              setDefaultGithubAccount.isPending &&
+                              setDefaultGithubAccount.variables?.id === account.id
+                            }
+                            onPress={() =>
+                              setDefaultGithubAccount.mutate({ id: account.id })
+                            }
+                            size="sm"
+                            variant="flat"
+                          >
+                            Set default
+                          </Button>
+                          <Button
+                            color="danger"
+                            isLoading={
+                              deleteGithubAccount.isPending &&
+                              deleteGithubAccount.variables?.id === account.id
+                            }
+                            onPress={() => {
+                              if (
+                                !window.confirm(
+                                  `Delete GitHub account "${account.name}"?`,
+                                )
+                              ) {
+                                return
+                              }
 
-              <p className="text-default-400 text-sm">
-                Current status:{" "}
-                {settings.githubTokenConfigured ? "token configured" : "token not configured"}
-              </p>
+                              deleteGithubAccount.mutate({ id: account.id })
+                            }}
+                            size="sm"
+                            variant="light"
+                          >
+                            Delete
+                          </Button>
+                        </div>
+                      </div>
+                    )
+                  })
+                ) : (
+                  <p className="text-default-400 text-sm">
+                    No GitHub accounts saved yet.
+                  </p>
+                )}
+              </div>
 
-              {saveGlobalSettings.error ? (
-                <p className="text-danger text-sm">
-                  {saveGlobalSettings.error.message}
+              <div className="space-y-4 rounded-lg border border-default-200 px-4 py-4">
+                <p className="text-sm font-medium text-default-700">
+                  Add account
                 </p>
+                <Input
+                  description="A friendly label shown when selecting an account for a worker."
+                  label="Account Name"
+                  onValueChange={setAccountName}
+                  placeholder="Work GitHub"
+                  value={accountName}
+                />
+                <Input
+                  description="Used for GitHub HTTPS authentication inside workers."
+                  label="GitHub Username"
+                  onValueChange={setGithubUsername}
+                  placeholder="your-github-handle"
+                  value={githubUsername}
+                />
+                <Input
+                  description="Stored in the backend secret store and can be selected per worker later."
+                  label="GitHub Token"
+                  onValueChange={setGithubToken}
+                  placeholder="ghp_..."
+                  type="password"
+                  value={githubToken}
+                />
+              </div>
+
+              {errorMessage ? (
+                <p className="text-danger text-sm">{errorMessage}</p>
               ) : null}
             </ModalBody>
             <ModalFooter className="justify-between">
-              <Button
-                color="danger"
-                isDisabled={!settings.githubTokenConfigured}
-                isLoading={saveGlobalSettings.isPending}
-                onPress={() =>
-                  saveGlobalSettings.mutate({
-                    clearGithubToken: true,
-                    githubUsername: githubUsername.trim(),
-                  })
-                }
-                variant="light"
-              >
-                Clear token
-              </Button>
+              <p className="text-default-400 text-xs">
+                These accounts are stored in the backend secret store and survive worker rebuilds.
+              </p>
               <div className="flex gap-2">
                 <Button onPress={close} variant="light">
-                  Cancel
+                  Close
                 </Button>
                 <Button
                   color="primary"
-                  isDisabled={!hasChanges}
-                  isLoading={saveGlobalSettings.isPending}
+                  isDisabled={!canAddAccount}
+                  isLoading={saveGithubAccount.isPending}
                   onPress={() =>
-                    saveGlobalSettings.mutate({
-                      ...(githubToken.trim()
-                        ? { githubToken: githubToken.trim() }
-                        : {}),
+                    saveGithubAccount.mutate({
+                      githubToken: githubToken.trim(),
                       githubUsername: githubUsername.trim(),
+                      name: accountName.trim(),
                     })
                   }
                   variant="flat"
                 >
-                  Save
+                  Add account
                 </Button>
               </div>
             </ModalFooter>

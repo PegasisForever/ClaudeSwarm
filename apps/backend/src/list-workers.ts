@@ -8,6 +8,7 @@ import {
   WORKER_PRESET_LABEL,
   WORKER_TITLE_LABEL,
 } from "./worker-container"
+import { getEffectiveGithubAccountForWorker } from "./secrets"
 
 const WORKERS_CACHE_TTL_MS = 900
 
@@ -18,6 +19,11 @@ export type WorkerInfo = {
   status: "ready" | "error" | "stopped"
   port: number
   monitorPort: number
+  githubAccountId?: string
+  githubAccountName?: string
+  githubConfigured: boolean
+  githubUsername: string
+  usesDefaultGithubAccount: boolean
   durationS: number
   createdAt: number
 }
@@ -101,6 +107,7 @@ async function loadWorkers(): Promise<WorkersResult> {
       const port = readPublishedPort(inspection)
       const monitorPort = readPublishedPort(inspection, WORKER_MONITOR_PORT)
       const monitorStatus = getContainerMonitorStatus(inspection)
+      const githubAccount = getEffectiveGithubAccountForWorker(container.Id)
 
       const parentId =
         inspection.Config.Labels?.[WORKER_PARENT_LABEL] ??
@@ -122,6 +129,11 @@ async function loadWorkers(): Promise<WorkersResult> {
           status: monitorStatus.status,
           port: port ?? 0,
           monitorPort: monitorPort ?? 0,
+          githubAccountId: githubAccount.accountId,
+          githubAccountName: githubAccount.account?.name,
+          githubConfigured: githubAccount.githubConfigured,
+          githubUsername: githubAccount.githubUsername,
+          usesDefaultGithubAccount: githubAccount.usesDefaultGithubAccount,
           durationS: getDurationS(inspection, container.Created),
           createdAt: container.Created,
         } satisfies WorkerInfo,

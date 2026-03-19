@@ -11,6 +11,11 @@ import {
   WORKER_WORKSPACE_VOLUME_LABEL,
 } from "./worker-container"
 import { destroyWorkerContainer } from "./destroy-worker"
+import { applyGithubAccountToWorker } from "./worker-github"
+import {
+  getStoredGithubAccountIdForWorker,
+  transferWorkerGithubAccount,
+} from "./secrets"
 
 const HEALTH_POLL_INTERVAL_MS = 1_000
 const HEALTH_TIMEOUT_MS = 60_000
@@ -97,6 +102,12 @@ export async function startManagedWorkerContainer(id: string) {
     console.error("[startManagedWorker] worker is reachable but not healthy yet", error)
   }
 
+  try {
+    await applyGithubAccountToWorker(id)
+  } catch (error) {
+    console.error("[startManagedWorker] failed to apply GitHub account", error)
+  }
+
   clearWorkersCache()
   return { id, port, healthy }
 }
@@ -140,6 +151,7 @@ export async function replaceManagedWorkerContainer(id: string) {
   const preset =
     inspection.Config.Labels?.[WORKER_PRESET_LABEL] ?? "default"
   const parentId = inspection.Config.Labels?.[WORKER_PARENT_LABEL]
+  const githubAccountId = getStoredGithubAccountIdForWorker(id)
   const wasRunning = inspection.State.Running
 
   let replacement:
@@ -153,6 +165,7 @@ export async function replaceManagedWorkerContainer(id: string) {
   try {
     replacement = await startWorkerContainer({
       env,
+      githubAccountId,
       labels: parentId ? { [WORKER_PARENT_LABEL]: parentId } : undefined,
       preset,
       title,
@@ -165,6 +178,7 @@ export async function replaceManagedWorkerContainer(id: string) {
       )
     }
 
+    transferWorkerGithubAccount(id, replacement.id)
     await destroyWorkerContainer(id, { removeWorkspaceVolume: false })
 
     clearWorkersCache()

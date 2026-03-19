@@ -36,6 +36,8 @@ New workers default to the `Default Dark Modern` theme in `code-server`.
 
 `~/setup.sh` is still included as the main customization hook for derived images, but it is no longer auto-run on startup.
 
+GitHub accounts are managed by the AgentSwarm backend secret store, not baked into the image. You can save multiple GitHub accounts, choose a default account for new workers, and assign a different account to an individual worker later. Those account records survive worker rebuilds and migrations.
+
 ## Environment Variables
 
 | Variable | Description |

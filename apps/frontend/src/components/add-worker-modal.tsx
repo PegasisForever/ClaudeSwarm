@@ -13,16 +13,18 @@ import {
 } from "@heroui/react"
 import { Fragment, useEffect, useMemo, useState, type Key } from "react"
 import { useNavigate } from "react-router"
-import type { PresetInfo } from "../lib/api-types"
+import type { GlobalSettings, PresetInfo } from "../lib/api-types"
 import { trpc } from "../trpc"
 
 type AddWorkerModalProps = {
+  globalSettings: GlobalSettings
   isOpen: boolean
   onOpenChange: (open: boolean) => void
   presets: PresetInfo[]
 }
 
 export function AddWorkerModal({
+  globalSettings,
   isOpen,
   onOpenChange,
   presets,
@@ -33,6 +35,8 @@ export function AddWorkerModal({
   const [title, setTitle] = useState("")
   const [presetName, setPresetName] = useState("")
   const [cloneRepositoryUrl, setCloneRepositoryUrl] = useState("")
+  const [githubAccountSelection, setGithubAccountSelection] =
+    useState<string>("default")
   const [envValues, setEnvValues] = useState<Record<string, string>>({})
   const [showLongLoadHint, setShowLongLoadHint] = useState(false)
 
@@ -71,6 +75,9 @@ export function AddWorkerModal({
       env: Object.fromEntries(
         selectedPreset.requiredEnv.map((key) => [key, envValues[key] ?? ""]),
       ),
+      ...(githubAccountSelection !== "default"
+        ? { githubAccountId: githubAccountSelection }
+        : {}),
       ...(cloneRepositoryUrl.trim()
         ? { cloneRepositoryUrl: cloneRepositoryUrl.trim() }
         : {}),
@@ -78,13 +85,20 @@ export function AddWorkerModal({
 
     const origin = window.location.origin
     return `curl -X POST '${origin}/api/trpc/startWorker' \\\n  -H 'content-type: application/json' \\\n  -d '${JSON.stringify(input)}'`
-  }, [title, selectedPreset, envValues, cloneRepositoryUrl])
+  }, [
+    title,
+    selectedPreset,
+    envValues,
+    githubAccountSelection,
+    cloneRepositoryUrl,
+  ])
 
   const handleOpenChange = (open: boolean) => {
     if (!open) {
       setTitle("")
       setPresetName("")
       setCloneRepositoryUrl("")
+      setGithubAccountSelection("default")
       setEnvValues({})
       setShowLongLoadHint(false)
       startWorker.reset()
@@ -147,6 +161,31 @@ export function AddWorkerModal({
                 value={cloneRepositoryUrl}
               />
 
+              <Select
+                description="Optional. Choose a saved GitHub account now, or let this worker follow the current default account."
+                label="GitHub Account"
+                onSelectionChange={(keys) => {
+                  const nextKey =
+                    keys === "all"
+                      ? undefined
+                      : (Array.from(keys)[0] as Key | undefined)
+
+                  if (typeof nextKey === "string") {
+                    setGithubAccountSelection(nextKey)
+                  }
+                }}
+                selectedKeys={[githubAccountSelection]}
+              >
+                <SelectItem key="default">
+                  Follow default
+                </SelectItem>
+                {globalSettings.githubAccounts.map((account) => (
+                  <SelectItem key={account.id}>
+                    {account.name} (@{account.username})
+                  </SelectItem>
+                ))}
+              </Select>
+
               {selectedPreset ? (
                 <div className="grid grid-cols-[auto_1fr] items-start gap-x-4 gap-y-4">
                   {selectedPreset.requiredEnv.map((envKey) => (
@@ -201,6 +240,9 @@ export function AddWorkerModal({
                     }
 
                     startWorker.mutate({
+                      ...(githubAccountSelection !== "default"
+                        ? { githubAccountId: githubAccountSelection }
+                        : {}),
                       ...(cloneRepositoryUrl.trim()
                         ? { cloneRepositoryUrl: cloneRepositoryUrl.trim() }
                         : {}),

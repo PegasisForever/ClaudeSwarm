@@ -1,6 +1,14 @@
+export type GithubAccount = {
+  id: string
+  name: string
+  username: string
+}
+
 export type WorkerStatus = "ready" | "error" | "stopped"
 
 export type GlobalSettings = {
+  defaultGithubAccountId: string | null
+  githubAccounts: GithubAccount[]
   githubUsername: string
   githubTokenConfigured: boolean
 }
@@ -17,9 +25,14 @@ export type WorkerInfo = {
   port: number
   monitorPort: number
   createdAt: number
+  githubAccountId?: string
+  githubAccountName?: string
+  githubConfigured: boolean
+  githubUsername: string
   preset: string
   status: WorkerStatus
   title: string
+  usesDefaultGithubAccount: boolean
 }
 
 export type WorkersResponse = {
@@ -30,6 +43,7 @@ export type WorkersResponse = {
 export type StartWorkerInput = {
   cloneRepositoryUrl?: string
   env: Record<string, string>
+  githubAccountId?: string
   preset: string
   title: string
 }

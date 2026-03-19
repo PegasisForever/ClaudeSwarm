@@ -8,12 +8,13 @@ ASKPASS_DIR="$HOME/.local/bin"
 ASKPASS_SCRIPT="$ASKPASS_DIR/github-askpass"
 SHELL_RC=""
 UPDATE_SHELL_RC=1
+CLEAR_CONFIG=0
 GITHUB_USERNAME_VALUE="${GITHUB_USERNAME:-}"
 GITHUB_TOKEN_VALUE="${GITHUB_TOKEN:-}"
 
 usage() {
   cat <<EOF
-Usage: $0 [--username USERNAME] [--token TOKEN] [--shellrc PATH] [--no-shellrc]
+Usage: $0 [--username USERNAME] [--token TOKEN] [--shellrc PATH] [--no-shellrc] [--clear]
 
 Configures GitHub authentication for the current machine by:
   - storing GITHUB_USERNAME and GITHUB_TOKEN in $ENV_FILE
@@ -26,6 +27,7 @@ Options:
   --token TOKEN        GitHub personal access token to save
   --shellrc PATH       Shell rc file to update
   --no-shellrc         Do not modify any shell rc file
+  --clear              Remove saved GitHub auth from this machine
   -h, --help           Show this help message
 EOF
 }
@@ -48,6 +50,10 @@ detect_shell_rc() {
 }
 
 prompt_for_missing_values() {
+  if [ "$CLEAR_CONFIG" -eq 1 ]; then
+    return
+  fi
+
   if [ -z "$GITHUB_USERNAME_VALUE" ]; then
     printf "GitHub username: " >&2
     read -r GITHUB_USERNAME_VALUE
@@ -63,6 +69,10 @@ prompt_for_missing_values() {
     echo "GitHub username and token are required." >&2
     exit 1
   fi
+}
+
+clear_env_file() {
+  rm -f "$ENV_FILE"
 }
 
 write_env_file() {
@@ -99,6 +109,10 @@ EOF
   chmod 700 "$ASKPASS_SCRIPT"
 }
 
+clear_askpass_script() {
+  rm -f "$ASKPASS_SCRIPT"
+}
+
 configure_git() {
   if ! command -v git >/dev/null 2>&1; then
     echo "git not found; skipped git configuration" >&2
@@ -108,6 +122,16 @@ configure_git() {
   git config --global credential.helper ""
   git config --global core.askPass "$ASKPASS_SCRIPT"
   git config --global credential.username "$GITHUB_USERNAME_VALUE"
+}
+
+clear_git() {
+  if ! command -v git >/dev/null 2>&1; then
+    return
+  fi
+
+  git config --global --unset-all core.askPass >/dev/null 2>&1 || true
+  git config --global --unset-all credential.username >/dev/null 2>&1 || true
+  git config --global credential.helper "" >/dev/null 2>&1 || true
 }
 
 configure_gh() {
@@ -121,6 +145,14 @@ configure_gh() {
   fi
 
   GH_TOKEN="$GITHUB_TOKEN_VALUE" gh auth setup-git
+}
+
+clear_gh() {
+  if ! command -v gh >/dev/null 2>&1; then
+    return
+  fi
+
+  gh auth logout --hostname github.com >/dev/null 2>&1 || true
 }
 
 update_shell_rc() {
@@ -174,6 +206,9 @@ while (($# > 0)); do
     --no-shellrc)
       UPDATE_SHELL_RC=0
       ;;
+    --clear)
+      CLEAR_CONFIG=1
+      ;;
     -h|--help)
       usage
       exit 0
@@ -188,20 +223,28 @@ while (($# > 0)); do
 done
 
 prompt_for_missing_values
-write_env_file
-write_askpass_script
-configure_git
-configure_gh
-update_shell_rc
-
-echo "Saved GitHub auth env to $ENV_FILE"
-echo "Configured git global credentials and askpass helper"
-if command -v gh >/dev/null 2>&1; then
-  echo "Configured gh auth"
-fi
-if [ "$UPDATE_SHELL_RC" -eq 1 ]; then
-  echo "Updated shell rc: ${SHELL_RC:-$(detect_shell_rc)}"
-  echo "Run: source \"$ENV_FILE\""
+if [ "$CLEAR_CONFIG" -eq 1 ]; then
+  clear_env_file
+  clear_askpass_script
+  clear_git
+  clear_gh
+  echo "Cleared GitHub auth config"
 else
-  echo "Run: source \"$ENV_FILE\""
+  write_env_file
+  write_askpass_script
+  configure_git
+  configure_gh
+  update_shell_rc
+
+  echo "Saved GitHub auth env to $ENV_FILE"
+  echo "Configured git global credentials and askpass helper"
+  if command -v gh >/dev/null 2>&1; then
+    echo "Configured gh auth"
+  fi
+  if [ "$UPDATE_SHELL_RC" -eq 1 ]; then
+    echo "Updated shell rc: ${SHELL_RC:-$(detect_shell_rc)}"
+    echo "Run: source \"$ENV_FILE\""
+  else
+    echo "Run: source \"$ENV_FILE\""
+  fi
 fi

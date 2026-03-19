@@ -6,14 +6,23 @@ import {
   stopManagedWorkerContainer,
 } from "./control-worker"
 import { destroyWorkerContainer } from "./destroy-worker"
-import { listWorkers } from "./list-workers"
+import { clearWorkersCache, listWorkers } from "./list-workers"
 import { startWorkerContainer } from "./start-worker"
 import { config } from "./config"
 import {
+  assignWorkerGithubAccount,
+  deleteGithubAccount,
   getGlobalSettings,
+  getStoredGithubAccountIdForWorker,
+  saveGithubAccount,
   saveGlobalSettings,
+  setDefaultGithubAccount,
 } from "./secrets"
 import { getContainerEnv, resolveWorkerByIp, WORKER_PARENT_LABEL } from "./worker-container"
+import {
+  applyGithubAccountToWorker,
+  applyGithubAccountsToRunningWorkers,
+} from "./worker-github"
 
 export type TRPCContext = {
   clientIp: string | undefined
@@ -37,6 +46,11 @@ const workerSchema = z.object({
   status: workerStatusSchema,
   port: z.number(),
   monitorPort: z.number(),
+  githubAccountId: z.string().optional(),
+  githubAccountName: z.string().optional(),
+  githubConfigured: z.boolean(),
+  githubUsername: z.string(),
+  usesDefaultGithubAccount: z.boolean(),
   durationS: z.number(),
   createdAt: z.number(),
 })
@@ -55,6 +69,14 @@ const presetsSchema = z.array(
 )
 
 const globalSettingsSchema = z.object({
+  defaultGithubAccountId: z.string().nullable(),
+  githubAccounts: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      username: z.string(),
+    }),
+  ),
   githubUsername: z.string(),
   githubTokenConfigured: z.boolean(),
 })
@@ -90,8 +112,78 @@ export const appRouter = router({
       }),
     )
     .output(globalSettingsSchema)
-    .mutation(({ input }) => {
-      return saveGlobalSettings(input)
+    .mutation(async ({ input }) => {
+      clearWorkersCache()
+      const result = saveGlobalSettings(input)
+      await applyGithubAccountsToRunningWorkers()
+      return result
+    }),
+  saveGithubAccount: publicProcedure
+    .input(
+      z.object({
+        id: z.string().trim().optional(),
+        name: z.string().trim().min(1),
+        githubToken: z.string().trim().min(1),
+        githubUsername: z.string().trim().min(1),
+      }),
+    )
+    .output(globalSettingsSchema)
+    .mutation(async ({ input }) => {
+      clearWorkersCache()
+      const result = saveGithubAccount({
+        id: input.id,
+        name: input.name,
+        token: input.githubToken,
+        username: input.githubUsername,
+      })
+      await applyGithubAccountsToRunningWorkers()
+      return result
+    }),
+  deleteGithubAccount: publicProcedure
+    .input(
+      z.object({
+        id: z.string(),
+      }),
+    )
+    .output(globalSettingsSchema)
+    .mutation(async ({ input }) => {
+      clearWorkersCache()
+      const result = deleteGithubAccount(input.id)
+      await applyGithubAccountsToRunningWorkers()
+      return result
+    }),
+  setDefaultGithubAccount: publicProcedure
+    .input(
+      z.object({
+        id: z.string(),
+      }),
+    )
+    .output(globalSettingsSchema)
+    .mutation(async ({ input }) => {
+      clearWorkersCache()
+      const result = setDefaultGithubAccount(input.id)
+      await applyGithubAccountsToRunningWorkers()
+      return result
+    }),
+  setWorkerGithubAccount: publicProcedure
+    .input(
+      z.object({
+        accountId: z.string().optional(),
+        workerId: z.string(),
+      }),
+    )
+    .output(z.void())
+    .mutation(async ({ input }) => {
+      assignWorkerGithubAccount(input)
+      clearWorkersCache()
+
+      try {
+        await applyGithubAccountToWorker(input.workerId)
+      } catch (error) {
+        console.error("[setWorkerGithubAccount] failed to apply GitHub account", error)
+      }
+
+      return undefined
     }),
   workers: publicProcedure.output(workersSchema).query(async () => {
     return listWorkers()
@@ -224,6 +316,7 @@ export const appRouter = router({
         title: z.string(),
         preset: z.string(),
         env: z.record(z.string(), z.string()),
+        githubAccountId: z.string().trim().optional(),
         cloneRepositoryUrl: z.string().trim().min(1).optional(),
       }),
     )
@@ -303,6 +396,7 @@ export const appRouter = router({
           title: input.title,
           preset: input.preset ?? caller.preset ?? "default",
           env,
+          githubAccountId: getStoredGithubAccountIdForWorker(caller.id),
           labels: { [WORKER_PARENT_LABEL]: caller.id },
         })
       } catch (error) {

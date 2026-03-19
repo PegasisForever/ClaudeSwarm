@@ -292,6 +292,7 @@ export function WorkerSidebar({
       </aside>
 
       <AddWorkerModal
+        globalSettings={globalSettings}
         isOpen={isAddModalOpen}
         onOpenChange={setIsAddModalOpen}
         presets={presets}

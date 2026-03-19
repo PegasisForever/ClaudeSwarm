@@ -65,6 +65,24 @@ function isManagedContainer(container: Docker.ContainerInfo) {
   return getKnownPresetNames().has(container.Labels?.[WORKER_PRESET_LABEL] ?? "")
 }
 
+export async function listManagedContainerIds(options?: { runningOnly?: boolean }) {
+  const containers = await docker.listContainers({ all: true })
+
+  return containers
+    .filter((container) => {
+      if (!isManagedContainer(container)) {
+        return false
+      }
+
+      if (options?.runningOnly && container.State !== "running") {
+        return false
+      }
+
+      return true
+    })
+    .map((container) => container.Id)
+}
+
 export function readPublishedPort(
   container: Docker.ContainerInspectInfo,
   portDefinition = WORKER_WEB_PORT,

@@ -7,6 +7,7 @@ import {
   ModalHeader,
 } from "@heroui/react"
 import {
+  IconBrandGithub,
   IconRefresh,
   IconExternalLink,
   IconPlayerPause,
@@ -14,13 +15,15 @@ import {
   IconTrash,
 } from "@tabler/icons-react"
 import { useState } from "react"
-import type { WorkerInfo } from "../lib/api-types"
+import type { GlobalSettings, WorkerInfo } from "../lib/api-types"
 import { getWorkerIframeUrl } from "../lib/worker-urls"
+import { WorkerGithubModal } from "./worker-github-modal"
 import { WorkerTerminalPanel } from "./worker-terminal-panel"
 
 type WorkerWorkspaceState = "active" | "cached" | "unloaded"
 
 type WorkerWorkspaceProps = {
+  globalSettings: GlobalSettings
   isReplacing: boolean
   isStarting: boolean
   isStopping: boolean
@@ -33,6 +36,7 @@ type WorkerWorkspaceProps = {
 }
 
 export function WorkerWorkspace({
+  globalSettings,
   isReplacing,
   isStarting,
   isStopping,
@@ -44,6 +48,7 @@ export function WorkerWorkspace({
   worker,
 }: WorkerWorkspaceProps) {
   const [destroyModalOpen, setDestroyModalOpen] = useState(false)
+  const [githubModalOpen, setGithubModalOpen] = useState(false)
   const [isDestroying, setIsDestroying] = useState(false)
 
   if (state === "unloaded") {
@@ -104,8 +109,25 @@ export function WorkerWorkspace({
         </ModalContent>
       </Modal>
 
+      <WorkerGithubModal
+        isOpen={githubModalOpen}
+        onOpenChange={setGithubModalOpen}
+        settings={globalSettings}
+        worker={worker}
+      />
+
       <section className={`absolute inset-0 flex flex-col ${hiddenClass}`}>
         <div className="flex items-center justify-end gap-2 border-b border-gray-700 bg-[#282828] px-4 py-3">
+          <Button
+            onPress={() => setGithubModalOpen(true)}
+            size="sm"
+            startContent={<IconBrandGithub size={16} />}
+            variant="light"
+          >
+            {worker.usesDefaultGithubAccount
+              ? "GitHub: Default"
+              : `GitHub: ${worker.githubAccountName ?? worker.githubUsername ?? "Custom"}`}
+          </Button>
           <Button
             isLoading={isReplacing}
             onPress={() => void onReplaceWorker(worker.id)}
