@@ -7,6 +7,7 @@ import {
   ModalHeader,
 } from "@heroui/react"
 import {
+  IconRefresh,
   IconExternalLink,
   IconPlayerPause,
   IconPlayerPlay,
@@ -20,9 +21,11 @@ import { WorkerTerminalPanel } from "./worker-terminal-panel"
 type WorkerWorkspaceState = "active" | "cached" | "unloaded"
 
 type WorkerWorkspaceProps = {
+  isReplacing: boolean
   isStarting: boolean
   isStopping: boolean
   onDestroyWorker: (id: string) => Promise<void>
+  onReplaceWorker: (id: string) => Promise<void>
   onStartWorker: (id: string) => Promise<void>
   onStopWorker: (id: string) => Promise<void>
   state: WorkerWorkspaceState
@@ -30,9 +33,11 @@ type WorkerWorkspaceProps = {
 }
 
 export function WorkerWorkspace({
+  isReplacing,
   isStarting,
   isStopping,
   onDestroyWorker,
+  onReplaceWorker,
   onStartWorker,
   onStopWorker,
   state,
@@ -101,6 +106,15 @@ export function WorkerWorkspace({
 
       <section className={`absolute inset-0 flex flex-col ${hiddenClass}`}>
         <div className="flex items-center justify-end gap-2 border-b border-gray-700 bg-[#282828] px-4 py-3">
+          <Button
+            isLoading={isReplacing}
+            onPress={() => void onReplaceWorker(worker.id)}
+            size="sm"
+            startContent={<IconRefresh size={16} />}
+            variant="light"
+          >
+            Migrate
+          </Button>
           <Button
             color={isStopped ? "success" : "default"}
             isLoading={isStarting || isStopping}

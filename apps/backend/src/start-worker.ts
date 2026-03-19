@@ -1,10 +1,12 @@
 import type Docker from "dockerode"
+import { randomUUID } from "node:crypto"
 import { posix as pathPosix } from "node:path"
 import {
   docker,
   getPreset,
   readPublishedPort,
   WORKER_MONITOR_PORT,
+  WORKER_WORKSPACE_VOLUME_LABEL,
   selfIp,
   WORKER_WEB_PORT,
   WORKER_PRESET_LABEL,
@@ -25,6 +27,7 @@ type StartWorkerParams = {
   env: Record<string, string>
   cloneRepositoryUrl?: string
   labels?: Record<string, string>
+  workspaceVolumeName?: string
 }
 
 function sleep(ms: number) {
@@ -51,6 +54,10 @@ function toContainerEnv(env: Record<string, string>) {
 function normalizeCloneRepositoryUrl(cloneRepositoryUrl?: string) {
   const trimmed = cloneRepositoryUrl?.trim()
   return trimmed ? trimmed : undefined
+}
+
+function createWorkspaceVolumeName() {
+  return `agentswarm-worker-${randomUUID()}`
 }
 
 function inferRepositoryDirectoryName(cloneRepositoryUrl: string) {
@@ -128,10 +135,13 @@ export async function startWorkerContainer({
   env,
   cloneRepositoryUrl,
   labels,
+  workspaceVolumeName,
 }: StartWorkerParams) {
   const selectedPreset = getPreset(preset)
   const normalizedCloneRepositoryUrl =
     normalizeCloneRepositoryUrl(cloneRepositoryUrl)
+  const resolvedWorkspaceVolumeName =
+    workspaceVolumeName ?? createWorkspaceVolumeName()
   const startupEnv: Record<string, string> = normalizedCloneRepositoryUrl
     ? {
         STARTUP_REPO_URL: normalizedCloneRepositoryUrl,
@@ -156,6 +166,12 @@ export async function startWorkerContainer({
   assertRequiredEnv(selectedPreset.requiredEnv, mergedEnv)
 
   await ensureImageAvailable(selectedPreset.imageTag)
+  await docker.createVolume({
+    Labels: {
+      [WORKER_WORKSPACE_VOLUME_LABEL]: "true",
+    },
+    Name: resolvedWorkspaceVolumeName,
+  })
 
   const container = await docker.createContainer({
     Image: selectedPreset.imageTag,
@@ -169,6 +185,7 @@ export async function startWorkerContainer({
         [WORKER_WEB_PORT]: [{ HostPort: "" }],
         [WORKER_MONITOR_PORT]: [{ HostPort: "" }],
       },
+      Binds: [`${resolvedWorkspaceVolumeName}:${WORKSPACE_ROOT}`],
       ShmSize: SHARED_MEMORY_BYTES,
       Memory: MEMORY_LIMIT_BYTES,
       CpuShares: 128,
@@ -177,6 +194,7 @@ export async function startWorkerContainer({
     Labels: {
       [WORKER_PRESET_LABEL]: selectedPreset.name,
       [WORKER_TITLE_LABEL]: title,
+      [WORKER_WORKSPACE_VOLUME_LABEL]: resolvedWorkspaceVolumeName,
       ...labels,
     },
   })
@@ -205,6 +223,14 @@ export async function startWorkerContainer({
       await container.remove({ force: true })
     } catch (removeError) {
       console.error("[startWorker] failed to clean up container", removeError)
+    }
+
+    if (!workspaceVolumeName) {
+      try {
+        await docker.getVolume(resolvedWorkspaceVolumeName).remove()
+      } catch (volumeError) {
+        console.error("[startWorker] failed to clean up workspace volume", volumeError)
+      }
     }
 
     throw error

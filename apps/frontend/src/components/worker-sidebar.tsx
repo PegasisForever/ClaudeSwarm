@@ -1,5 +1,6 @@
 import { Button } from "@heroui/react"
 import {
+  IconRefresh,
   IconPlayerPause,
   IconPlayerPlay,
   IconPlus,
@@ -17,9 +18,11 @@ import { GlobalSettingsModal } from "./global-settings-modal"
 type WorkerSidebarProps = {
   globalSettings: GlobalSettings
   isDestroyingWorker: (id: string) => boolean
+  isReplacingWorker: (id: string) => boolean
   isStartingWorker: (id: string) => boolean
   isStoppingWorker: (id: string) => boolean
   onDestroyWorker: (id: string) => Promise<void>
+  onReplaceWorker: (id: string) => Promise<void>
   onStartWorker: (id: string) => Promise<void>
   onStopWorker: (id: string) => Promise<void>
   presets: PresetInfo[]
@@ -29,20 +32,24 @@ type WorkerSidebarProps = {
 
 type WorkerListItemProps = {
   isDestroying: boolean
+  isReplacing: boolean
   worker: WorkerInfo
   isStarting: boolean
   isStopping: boolean
   onDestroyWorker: (id: string) => Promise<void>
+  onReplaceWorker: (id: string) => Promise<void>
   onStartWorker: (id: string) => Promise<void>
   onStopWorker: (id: string) => Promise<void>
 }
 
 function WorkerControls({
   isDestroying,
+  isReplacing,
   worker,
   isStarting,
   isStopping,
   onDestroyWorker,
+  onReplaceWorker,
   onStartWorker,
   onStopWorker,
 }: WorkerListItemProps) {
@@ -50,6 +57,15 @@ function WorkerControls({
 
   return (
     <div className="mt-3 flex shrink-0 items-center gap-1 self-start">
+      <Button
+        isIconOnly
+        isLoading={isReplacing}
+        onPress={() => void onReplaceWorker(worker.id)}
+        size="sm"
+        variant="light"
+      >
+        <IconRefresh size={16} />
+      </Button>
       <Button
         color={isStopped ? "success" : "default"}
         isIconOnly
@@ -84,10 +100,12 @@ function WorkerControls({
 
 function WorkerItem({
   isDestroying,
+  isReplacing,
   worker,
   isStarting,
   isStopping,
   onDestroyWorker,
+  onReplaceWorker,
   onStartWorker,
   onStopWorker,
 }: WorkerListItemProps) {
@@ -117,10 +135,12 @@ function WorkerItem({
       </Button>
       <WorkerControls
         isDestroying={isDestroying}
+        isReplacing={isReplacing}
         worker={worker}
         isStarting={isStarting}
         isStopping={isStopping}
         onDestroyWorker={onDestroyWorker}
+        onReplaceWorker={onReplaceWorker}
         onStartWorker={onStartWorker}
         onStopWorker={onStopWorker}
       />
@@ -130,10 +150,12 @@ function WorkerItem({
 
 function SubWorkerItem({
   isDestroying,
+  isReplacing,
   worker,
   isStarting,
   isStopping,
   onDestroyWorker,
+  onReplaceWorker,
   onStartWorker,
   onStopWorker,
 }: WorkerListItemProps) {
@@ -163,10 +185,12 @@ function SubWorkerItem({
       </Button>
       <WorkerControls
         isDestroying={isDestroying}
+        isReplacing={isReplacing}
         worker={worker}
         isStarting={isStarting}
         isStopping={isStopping}
         onDestroyWorker={onDestroyWorker}
+        onReplaceWorker={onReplaceWorker}
         onStartWorker={onStartWorker}
         onStopWorker={onStopWorker}
       />
@@ -177,9 +201,11 @@ function SubWorkerItem({
 export function WorkerSidebar({
   globalSettings,
   isDestroyingWorker,
+  isReplacingWorker,
   isStartingWorker,
   isStoppingWorker,
   onDestroyWorker,
+  onReplaceWorker,
   onStartWorker,
   onStopWorker,
   presets,
@@ -234,9 +260,11 @@ export function WorkerSidebar({
                   <div key={worker.id}>
                     <WorkerItem
                       isDestroying={isDestroyingWorker(worker.id)}
+                      isReplacing={isReplacingWorker(worker.id)}
                       isStarting={isStartingWorker(worker.id)}
                       isStopping={isStoppingWorker(worker.id)}
                       onDestroyWorker={onDestroyWorker}
+                      onReplaceWorker={onReplaceWorker}
                       onStartWorker={onStartWorker}
                       onStopWorker={onStopWorker}
                       worker={worker}
@@ -245,9 +273,11 @@ export function WorkerSidebar({
                       <SubWorkerItem
                         key={child.id}
                         isDestroying={isDestroyingWorker(child.id)}
+                        isReplacing={isReplacingWorker(child.id)}
                         isStarting={isStartingWorker(child.id)}
                         isStopping={isStoppingWorker(child.id)}
                         onDestroyWorker={onDestroyWorker}
+                        onReplaceWorker={onReplaceWorker}
                         onStartWorker={onStartWorker}
                         onStopWorker={onStopWorker}
                         worker={child}

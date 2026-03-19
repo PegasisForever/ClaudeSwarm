@@ -44,6 +44,7 @@ export function DashboardPage() {
     staleTime: Number.POSITIVE_INFINITY,
   })
   const destroyWorker = trpc.destroyWorker.useMutation()
+  const replaceWorker = trpc.replaceWorker.useMutation()
   const startExistingWorker = trpc.startExistingWorker.useMutation()
   const stopWorker = trpc.stopWorker.useMutation()
   const prevStatusById = useRef<Map<string, string>>(new Map())
@@ -109,6 +110,18 @@ export function DashboardPage() {
     await workersQuery.refetch()
   }
 
+  const handleReplaceWorker = async (id: string) => {
+    try {
+      const replacement = await replaceWorker.mutateAsync({ id })
+      await workersQuery.refetch()
+      void navigate(`/${replacement.id}`)
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to migrate worker"
+      window.alert(message)
+    }
+  }
+
   const handleStopWorker = async (id: string) => {
     await stopWorker.mutateAsync({ id })
     await workersQuery.refetch()
@@ -122,6 +135,9 @@ export function DashboardPage() {
           isDestroyingWorker={(id) =>
             destroyWorker.isPending && destroyWorker.variables?.id === id
           }
+          isReplacingWorker={(id) =>
+            replaceWorker.isPending && replaceWorker.variables?.id === id
+          }
           isStartingWorker={(id) =>
             startExistingWorker.isPending &&
             startExistingWorker.variables?.id === id
@@ -130,6 +146,7 @@ export function DashboardPage() {
             stopWorker.isPending && stopWorker.variables?.id === id
           }
           onDestroyWorker={handleDestroyWorker}
+          onReplaceWorker={handleReplaceWorker}
           onStartWorker={handleStartWorker}
           onStopWorker={handleStopWorker}
           presets={presets}
@@ -142,6 +159,9 @@ export function DashboardPage() {
             {activeId && availableIds.has(activeId) ? (
               workers.map((worker) => (
                 <WorkerWorkspace
+                  isReplacing={
+                    replaceWorker.isPending && replaceWorker.variables?.id === worker.id
+                  }
                   isStarting={
                     startExistingWorker.isPending &&
                     startExistingWorker.variables?.id === worker.id
@@ -151,6 +171,7 @@ export function DashboardPage() {
                   }
                   key={worker.id}
                   onDestroyWorker={handleDestroyWorker}
+                  onReplaceWorker={handleReplaceWorker}
                   onStartWorker={handleStartWorker}
                   onStopWorker={handleStopWorker}
                   state={getWorkerState(worker.id)}

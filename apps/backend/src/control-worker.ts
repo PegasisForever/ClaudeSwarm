@@ -1,12 +1,48 @@
 import type Docker from "dockerode"
 import { clearWorkersCache } from "./list-workers"
-import { findManagedContainerById, readPublishedPort } from "./worker-container"
+import { startWorkerContainer } from "./start-worker"
+import {
+  findManagedContainerById,
+  getContainerEnv,
+  readPublishedPort,
+  WORKER_PARENT_LABEL,
+  WORKER_PRESET_LABEL,
+  WORKER_TITLE_LABEL,
+  WORKER_WORKSPACE_VOLUME_LABEL,
+} from "./worker-container"
+import { destroyWorkerContainer } from "./destroy-worker"
 
 const HEALTH_POLL_INTERVAL_MS = 1_000
 const HEALTH_TIMEOUT_MS = 60_000
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function sanitizeReplacementEnv(env: Record<string, string>) {
+  const nextEnv = { ...env }
+
+  for (const key of [
+    "CODEX_VERSION",
+    "CODEX_WORKER",
+    "HOME",
+    "HOSTNAME",
+    "MONITOR_PORT",
+    "NIX_REMOTE",
+    "NPM_CONFIG_PREFIX",
+    "ORCHESTRATOR_ADDRESS",
+    "ORCHESTRATOR_PORT",
+    "PATH",
+    "PWD",
+    "SHELL",
+    "SHLVL",
+    "USER",
+    "WORKER_PROFILE",
+  ]) {
+    delete nextEnv[key]
+  }
+
+  return nextEnv
 }
 
 async function waitForHealth(container: Docker.Container) {
@@ -78,4 +114,86 @@ export async function stopManagedWorkerContainer(id: string) {
   }
 
   clearWorkersCache()
+}
+
+export async function replaceManagedWorkerContainer(id: string) {
+  const container = await findManagedContainerById(id)
+
+  if (!container) {
+    throw new Error(`No managed worker found for id ${id}`)
+  }
+
+  const inspection = await container.inspect()
+  const workspaceVolumeName =
+    inspection.Config.Labels?.[WORKER_WORKSPACE_VOLUME_LABEL]
+
+  if (!workspaceVolumeName) {
+    throw new Error(
+      "This worker was created before workspace volumes were enabled and cannot be migrated automatically",
+    )
+  }
+
+  const env = sanitizeReplacementEnv(await getContainerEnv(id))
+  const title =
+    inspection.Config.Labels?.[WORKER_TITLE_LABEL] ??
+    inspection.Name.replace(/^\//, "")
+  const preset =
+    inspection.Config.Labels?.[WORKER_PRESET_LABEL] ?? "default"
+  const parentId = inspection.Config.Labels?.[WORKER_PARENT_LABEL]
+  const wasRunning = inspection.State.Running
+
+  let replacement:
+    | Awaited<ReturnType<typeof startWorkerContainer>>
+    | undefined
+
+  if (wasRunning) {
+    await container.stop()
+  }
+
+  try {
+    replacement = await startWorkerContainer({
+      env,
+      labels: parentId ? { [WORKER_PARENT_LABEL]: parentId } : undefined,
+      preset,
+      title,
+      workspaceVolumeName,
+    })
+
+    if (!replacement.healthy) {
+      throw new Error(
+        "Replacement worker failed its health check; the original worker was kept",
+      )
+    }
+
+    await destroyWorkerContainer(id, { removeWorkspaceVolume: false })
+
+    clearWorkersCache()
+    return replacement
+  } catch (error) {
+    if (replacement) {
+      try {
+        await destroyWorkerContainer(replacement.id, {
+          removeWorkspaceVolume: false,
+        })
+      } catch (cleanupError) {
+        console.error(
+          "[replaceManagedWorker] failed to clean up replacement worker",
+          cleanupError,
+        )
+      }
+    }
+
+    if (wasRunning) {
+      try {
+        await container.start()
+      } catch (restartError) {
+        console.error(
+          "[replaceManagedWorker] failed to restart original worker",
+          restartError,
+        )
+      }
+    }
+
+    throw error
+  }
 }

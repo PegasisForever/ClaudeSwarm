@@ -1,3 +1,4 @@
+import type { PointerEvent as ReactPointerEvent } from "react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { FitAddon } from "@xterm/addon-fit"
 import { Terminal } from "@xterm/xterm"
@@ -24,6 +25,10 @@ const TERMINAL_TAB_CONFIG: Record<TerminalTab, { command: string; label: string 
     },
   }
 
+const DEFAULT_PANEL_HEIGHT = 288
+const MIN_PANEL_HEIGHT = 180
+const MAX_PANEL_HEIGHT_RATIO = 0.7
+
 function parseMonitorMessage(rawMessage: string) {
   try {
     return JSON.parse(rawMessage) as
@@ -40,11 +45,101 @@ export function WorkerTerminalPanel({
   monitorPort,
 }: WorkerTerminalPanelProps) {
   const [activeTab, setActiveTab] = useState<TerminalTab>("terminal")
+  const [panelHeight, setPanelHeight] = useState(DEFAULT_PANEL_HEIGHT)
+  const panelRef = useRef<HTMLElement | null>(null)
   const terminalHostRef = useRef<HTMLDivElement | null>(null)
+  const panelHeightRef = useRef(DEFAULT_PANEL_HEIGHT)
+  const dragStateRef = useRef<{ startHeight: number; startY: number } | null>(
+    null,
+  )
+  const rafRef = useRef<number | null>(null)
   const panelCommand = useMemo(
     () => TERMINAL_TAB_CONFIG[activeTab].command,
     [activeTab],
   )
+
+  useEffect(() => {
+    panelHeightRef.current = panelHeight
+  }, [panelHeight])
+
+  useEffect(() => {
+    const panelElement = panelRef.current
+
+    if (!panelElement) {
+      return
+    }
+
+    panelElement.style.height = `${panelHeight}px`
+  }, [panelHeight])
+
+  useEffect(() => {
+    const applyPanelHeight = (nextHeight: number) => {
+      panelHeightRef.current = nextHeight
+
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current)
+      }
+
+      rafRef.current = window.requestAnimationFrame(() => {
+        const panelElement = panelRef.current
+
+        if (panelElement) {
+          panelElement.style.height = `${nextHeight}px`
+        }
+
+        rafRef.current = null
+      })
+    }
+
+    const handlePointerMove = (event: PointerEvent) => {
+      const dragState = dragStateRef.current
+
+      if (!dragState) {
+        return
+      }
+
+      const maxPanelHeight = Math.floor(window.innerHeight * MAX_PANEL_HEIGHT_RATIO)
+      const nextHeight = dragState.startHeight + (dragState.startY - event.clientY)
+
+      applyPanelHeight(
+        Math.max(MIN_PANEL_HEIGHT, Math.min(maxPanelHeight, nextHeight)),
+      )
+    }
+
+    const handlePointerUp = () => {
+      if (!dragStateRef.current) {
+        return
+      }
+
+      dragStateRef.current = null
+      document.body.style.cursor = ""
+      document.body.style.userSelect = ""
+      setPanelHeight(panelHeightRef.current)
+    }
+
+    window.addEventListener("pointermove", handlePointerMove)
+    window.addEventListener("pointerup", handlePointerUp)
+
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove)
+      window.removeEventListener("pointerup", handlePointerUp)
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current)
+        rafRef.current = null
+      }
+      document.body.style.cursor = ""
+      document.body.style.userSelect = ""
+    }
+  }, [])
+
+  const handleResizeStart = (event: ReactPointerEvent<HTMLDivElement>) => {
+    dragStateRef.current = {
+      startHeight: panelHeightRef.current,
+      startY: event.clientY,
+    }
+    document.body.style.cursor = "row-resize"
+    document.body.style.userSelect = "none"
+  }
 
   useEffect(() => {
     const hostElement = terminalHostRef.current
@@ -139,7 +234,21 @@ export function WorkerTerminalPanel({
   }, [isReady, monitorPort, panelCommand])
 
   return (
-    <section className="flex h-72 shrink-0 flex-col border-t border-gray-700 bg-[#1b1b1b]">
+    <section
+      className="flex shrink-0 flex-col border-t border-gray-700 bg-[#1b1b1b]"
+      ref={panelRef}
+      style={{ height: `${panelHeight}px` }}
+    >
+      <div
+        className="group flex h-3 shrink-0 cursor-row-resize items-center justify-center bg-[#181818]"
+        onPointerDown={handleResizeStart}
+        role="separator"
+        aria-label="Resize terminal panel"
+        aria-orientation="horizontal"
+      >
+        <div className="h-1 w-16 rounded-full bg-[#3a3a3a] transition group-hover:bg-[#5a5a5a]" />
+      </div>
+
       <div className="flex items-center gap-2 border-b border-gray-800 px-4 py-2">
         {(Object.entries(TERMINAL_TAB_CONFIG) as Array<
           [TerminalTab, { label: string }]

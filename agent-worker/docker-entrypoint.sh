@@ -12,6 +12,13 @@ SETPRIV_BIN="$(readlink -f "$(command -v setpriv)")"
 NIX_DAEMON_BIN="$(readlink -f "$(command -v nix-daemon)")"
 BUN_BIN="$(readlink -f "$(command -v bun)")"
 MONITOR_SCRIPT="/usr/local/bin/monitor.js"
+BUN_PTY_LIB=""
+
+if [ -f /usr/local/lib/bun-pty/librust_pty_arm64.so ]; then
+  BUN_PTY_LIB="/usr/local/lib/bun-pty/librust_pty_arm64.so"
+elif [ -f /usr/local/lib/bun-pty/librust_pty.so ]; then
+  BUN_PTY_LIB="/usr/local/lib/bun-pty/librust_pty.so"
+fi
 
 mkdir -p /var/run /var/lib/docker
 chown -R 1000:1000 "$HOME_DIR"
@@ -65,6 +72,7 @@ exec "$SETPRIV_BIN" \
   CODE_SERVER_PORT="$CODE_SERVER_PORT" \
   MONITOR_PORT="$MONITOR_PORT" \
   BUN_BIN="$BUN_BIN" \
+  BUN_PTY_LIB="$BUN_PTY_LIB" \
   MONITOR_SCRIPT="$MONITOR_SCRIPT" \
   "$BASH_BIN" -lc '
     set -euo pipefail

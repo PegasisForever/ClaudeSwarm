@@ -1,6 +1,10 @@
 import { TRPCError, initTRPC } from "@trpc/server"
 import { z } from "zod"
-import { startManagedWorkerContainer, stopManagedWorkerContainer } from "./control-worker"
+import {
+  replaceManagedWorkerContainer,
+  startManagedWorkerContainer,
+  stopManagedWorkerContainer,
+} from "./control-worker"
 import { destroyWorkerContainer } from "./destroy-worker"
 import { listWorkers } from "./list-workers"
 import { startWorkerContainer } from "./start-worker"
@@ -155,6 +159,33 @@ export const appRouter = router({
           code: "INTERNAL_SERVER_ERROR",
           message:
             error instanceof Error ? error.message : "Failed to start worker",
+          cause: error,
+        })
+      }
+    }),
+  replaceWorker: publicProcedure
+    .input(
+      z.object({
+        id: z.string(),
+      }),
+    )
+    .output(
+      z.object({
+        id: z.string(),
+        port: z.number(),
+        healthy: z.boolean(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      try {
+        return await replaceManagedWorkerContainer(input.id)
+      } catch (error) {
+        console.error("[replaceWorker] failed to replace worker", error)
+
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message:
+            error instanceof Error ? error.message : "Failed to replace worker",
           cause: error,
         })
       }

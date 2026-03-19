@@ -10,6 +10,8 @@ RUN bun install
 COPY apps/monitor /app/apps/monitor
 
 RUN bun build /app/apps/monitor/src/index.ts --outfile=/app/apps/monitor/dist/index.js --target bun --minify
+RUN mkdir -p /app/apps/monitor/dist/native \
+    && find /app/node_modules -path '*/bun-pty/rust-pty/target/release/librust_pty*.so' -exec cp {} /app/apps/monitor/dist/native/ \;
 
 FROM nixos/nix:latest
 
@@ -58,6 +60,7 @@ COPY --chown=1000:1000 agent-worker/bashrc /home/kasm-user/.bashrc
 COPY --chown=1000:1000 agent-worker/setup.sh /home/kasm-user/setup.sh
 COPY --chown=1000:1000 agent-worker/orchestrator.py /home/kasm-user/orchestrator.py
 COPY --from=monitor-builder /app/apps/monitor/dist/index.js /usr/local/bin/monitor.js
+COPY --from=monitor-builder /app/apps/monitor/dist/native /usr/local/lib/bun-pty
 COPY agent-worker/docker-entrypoint.sh /usr/local/bin/agent-worker-entrypoint
 
 RUN chmod +x /home/kasm-user/orchestrator.py /usr/local/bin/agent-worker-entrypoint \

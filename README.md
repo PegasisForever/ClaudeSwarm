@@ -54,6 +54,10 @@ Each worker now exposes a single `code-server` web IDE on its published port. Th
 
 Workers are persistent Docker containers until you explicitly destroy them. From the dashboard you can pause a worker without deleting its workspace and start it again later from the same UI.
 
+Each newly created worker now gets its own Docker volume mounted at `/home/kasm-user/workers`, so its workspace survives stop/start cycles and can be migrated to a fresh container later.
+
+The dashboard also includes a `Migrate` action. It recreates the worker from the latest image while reusing the same persisted workspace volume. Older workers created before workspace volumes were introduced cannot be migrated automatically.
+
 When creating a worker from the dashboard, you can optionally provide a repository URL. The worker will clone that repository on first boot and open `code-server` directly in the cloned directory.
 
 For GitHub repositories, a configured `GITHUB_TOKEN` is also used for the initial clone. This means private GitHub repos can be cloned at worker startup without requiring an SSH key inside the worker.

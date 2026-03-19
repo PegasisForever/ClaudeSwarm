@@ -9,6 +9,7 @@ export const WORKER_MONITOR_PORT = "51301/tcp"
 export const WORKER_PRESET_LABEL = "agentswarm.preset"
 export const WORKER_TITLE_LABEL = "agentswarm.title"
 export const WORKER_PARENT_LABEL = "agentswarm.parent"
+export const WORKER_WORKSPACE_VOLUME_LABEL = "agentswarm.workspace-volume"
 
 export let selfIp: string | undefined
 let runtimeInitialized = false
