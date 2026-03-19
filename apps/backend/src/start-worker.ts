@@ -12,7 +12,8 @@ import {
   WORKER_PRESET_LABEL,
   WORKER_TITLE_LABEL,
 } from "./worker-container"
-import { config, port } from "./config"
+import { port } from "./config"
+import { getWorkerSecretEnv } from "./secrets"
 
 const SHARED_MEMORY_BYTES = 1024 * 1024 * 1024
 const MEMORY_LIMIT_BYTES = 8 * 1024 * 1024 * 1024
@@ -155,10 +156,11 @@ export async function startWorkerContainer({
     selfIp !== undefined
       ? { ORCHESTRATOR_ADDRESS: selfIp, ORCHESTRATOR_PORT: String(port) }
       : {}
+  const secretEnv = getWorkerSecretEnv()
   const mergedEnv = {
     ...orchestratorEnv,
     ...selectedPreset.presetEnv,
-    ...config.globalEnv,
+    ...secretEnv,
     ...env,
     ...startupEnv,
   }

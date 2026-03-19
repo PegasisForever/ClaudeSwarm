@@ -48,7 +48,7 @@ When you create a worker from the UI, the default image tag is `agent-worker:lat
 
 `GITHUB_TOKEN` is also optional. GitHub-specific operations such as PR inspection or authenticated remote access will only work when a token is available.
 
-You can now configure `GITHUB_USERNAME` and `GITHUB_TOKEN` once from the dashboard's global settings. They are persisted in the backend config and injected into newly created workers automatically.
+You can configure `GITHUB_USERNAME` and `GITHUB_TOKEN` from the dashboard's global settings. They are stored in AgentSwarm's own persistent data volume, not in [`apps/backend/config.json`](/Users/jiucheng/Dev/AgentSwarm/apps/backend/config.json), and are injected into newly created workers automatically.
 
 Each worker now exposes a single `code-server` web IDE on its published port. The dashboard embeds that IDE directly instead of showing a desktop/VNC session or custom terminal panes.
 

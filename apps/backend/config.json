@@ -63,9 +63,5 @@
         "OPENAI_API_KEY"
       ]
     }
-  ],
-  "globalEnv": {
-    "GITHUB_TOKEN": "",
-    "GITHUB_USERNAME": ""
-  }
+  ]
 }

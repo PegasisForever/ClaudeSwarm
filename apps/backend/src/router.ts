@@ -8,7 +8,11 @@ import {
 import { destroyWorkerContainer } from "./destroy-worker"
 import { listWorkers } from "./list-workers"
 import { startWorkerContainer } from "./start-worker"
-import { config, setGlobalEnv } from "./config"
+import { config } from "./config"
+import {
+  getGlobalSettings,
+  saveGlobalSettings,
+} from "./secrets"
 import { getContainerEnv, resolveWorkerByIp, WORKER_PARENT_LABEL } from "./worker-container"
 
 export type TRPCContext = {
@@ -75,10 +79,7 @@ export const appRouter = router({
   globalSettings: publicProcedure
     .output(globalSettingsSchema)
     .query(() => {
-      return {
-        githubUsername: config.globalEnv.GITHUB_USERNAME ?? "",
-        githubTokenConfigured: Boolean(config.globalEnv.GITHUB_TOKEN),
-      }
+      return getGlobalSettings()
     }),
   saveGlobalSettings: publicProcedure
     .input(
@@ -90,26 +91,7 @@ export const appRouter = router({
     )
     .output(globalSettingsSchema)
     .mutation(({ input }) => {
-      const nextGlobalEnv = { ...config.globalEnv }
-
-      if (input.githubUsername) {
-        nextGlobalEnv.GITHUB_USERNAME = input.githubUsername
-      } else {
-        delete nextGlobalEnv.GITHUB_USERNAME
-      }
-
-      if (input.clearGithubToken) {
-        delete nextGlobalEnv.GITHUB_TOKEN
-      } else if (input.githubToken) {
-        nextGlobalEnv.GITHUB_TOKEN = input.githubToken
-      }
-
-      setGlobalEnv(nextGlobalEnv)
-
-      return {
-        githubUsername: nextGlobalEnv.GITHUB_USERNAME ?? "",
-        githubTokenConfigured: Boolean(nextGlobalEnv.GITHUB_TOKEN),
-      }
+      return saveGlobalSettings(input)
     }),
   workers: publicProcedure.output(workersSchema).query(async () => {
     return listWorkers()

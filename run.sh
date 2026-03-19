@@ -45,6 +45,7 @@ DOCKER_ARGS=(
   -e "PORT=$PORT"
   -p "$PORT:$PORT"
   -v /var/run/docker.sock:/var/run/docker.sock
+  -v "${CONTAINER_NAME}-data:/app/data"
 )
 
 if [ -f "$CONFIG_FILE" ]; then

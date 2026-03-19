@@ -38,7 +38,7 @@ New workers default to the `Default Dark Modern` theme in `code-server`.
 | Variable | Description |
 | --- | --- |
 | `OPENAI_API_KEY` | Optional, available inside the worker so Codex can be used from the integrated terminal |
-| `GITHUB_TOKEN` | Optional token for GitHub operations |
+| `GITHUB_TOKEN` | Optional token for GitHub operations, typically injected by AgentSwarm from its secret store |
 | `CODEX_PROMPT` | Optional passthrough env var; no longer consumed by startup |
 | `CODEX_ONESHOT` | Optional passthrough env var; no longer consumed by startup |
 | `STARTUP_REPO_URL` | Optional repository URL to clone before `code-server` starts |
