@@ -1,7 +1,6 @@
 # AgentSwarm
 
 [![Docker](https://github.com/zangjiucheng/AgentSwarm/actions/workflows/docker.yml/badge.svg)](https://github.com/zangjiucheng/AgentSwarm/actions/workflows/docker.yml)
-[![Docker Ready](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](#run)
 [![Nix Worker](https://img.shields.io/badge/Nix-worker-5277C3?logo=nixos&logoColor=white)](./agent-worker/flake.nix)
 
 ## Run
