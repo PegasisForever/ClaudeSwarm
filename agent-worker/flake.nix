@@ -54,6 +54,7 @@
             tmux
             util-linux
             which
+            zsh
           ];
         };
         nodejs = pkgs.nodejs_22;

@@ -195,31 +195,87 @@ export function WorkerTerminalPanel({
       getWorkerMonitorWebSocketUrl(monitorPort, panelCommand),
     )
     let resizeFrame: number | null = null
+    let refreshFrame: number | null = null
+    let resizeTimeout: number | null = null
+    let lastSyncedSize: { cols: number; rows: number } | null = null
 
-    const sendResize = () => {
+    const scheduleRefresh = () => {
+      if (refreshFrame !== null) {
+        cancelAnimationFrame(refreshFrame)
+      }
+
+      refreshFrame = window.requestAnimationFrame(() => {
+        refreshFrame = null
+
+        if (term.rows <= 0) {
+          return
+        }
+
+        term.refresh(0, term.rows - 1)
+      })
+    }
+
+    const syncTerminalSize = (cols: number, rows: number) => {
+      if (socket.readyState !== WebSocket.OPEN || cols <= 0 || rows <= 0) {
+        return
+      }
+
+      if (
+        lastSyncedSize?.cols === cols &&
+        lastSyncedSize.rows === rows
+      ) {
+        return
+      }
+
+      lastSyncedSize = { cols, rows }
+      socket.send(
+        JSON.stringify({
+          type: "resize",
+          cols,
+          rows,
+        }),
+      )
+    }
+
+    const applyResize = () => {
       if (resizeFrame !== null) {
         return
       }
 
       resizeFrame = window.requestAnimationFrame(() => {
         resizeFrame = null
-        fitAddon.fit()
 
-        if (socket.readyState !== WebSocket.OPEN) {
+        if (hostElement.clientWidth <= 0 || hostElement.clientHeight <= 0) {
           return
         }
 
-        socket.send(
-          JSON.stringify({
-            type: "resize",
-            cols: term.cols,
-            rows: term.rows,
-          }),
-        )
+        fitAddon.fit()
+        scheduleRefresh()
+        syncTerminalSize(term.cols, term.rows)
       })
     }
 
-    socket.addEventListener("open", sendResize)
+    const sendResize = (debounceMs = 0) => {
+      if (resizeTimeout !== null) {
+        window.clearTimeout(resizeTimeout)
+        resizeTimeout = null
+      }
+
+      if (debounceMs <= 0) {
+        applyResize()
+        return
+      }
+
+      resizeTimeout = window.setTimeout(() => {
+        resizeTimeout = null
+        applyResize()
+      }, debounceMs)
+    }
+
+    socket.addEventListener("open", () => {
+      lastSyncedSize = null
+      sendResize()
+    })
     socket.addEventListener("message", (event) => {
       const payload =
         typeof event.data === "string" ? event.data : String(event.data)
@@ -243,10 +299,24 @@ export function WorkerTerminalPanel({
       term.write("\r\n[connection error]\r\n")
     })
 
+    const resizeDisposable = term.onResize(({ cols, rows }) => {
+      scheduleRefresh()
+      syncTerminalSize(cols, rows)
+    })
+
     const resizeObserver = new ResizeObserver(() => {
-      sendResize()
+      sendResize(50)
     })
     resizeObserver.observe(hostElement)
+
+    const handleWindowResize = () => {
+      sendResize(50)
+    }
+    window.addEventListener("resize", handleWindowResize)
+
+    void document.fonts?.ready?.then(() => {
+      sendResize()
+    })
 
     const dataDisposable = term.onData((data) => {
       if (socket.readyState !== WebSocket.OPEN) {
@@ -259,10 +329,18 @@ export function WorkerTerminalPanel({
     sendResize()
 
     return () => {
+      if (resizeTimeout !== null) {
+        window.clearTimeout(resizeTimeout)
+      }
       if (resizeFrame !== null) {
         cancelAnimationFrame(resizeFrame)
       }
+      if (refreshFrame !== null) {
+        cancelAnimationFrame(refreshFrame)
+      }
+      window.removeEventListener("resize", handleWindowResize)
       resizeObserver.disconnect()
+      resizeDisposable.dispose()
       dataDisposable.dispose()
       socket.close()
       term.dispose()

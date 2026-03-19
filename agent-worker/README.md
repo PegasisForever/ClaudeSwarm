@@ -13,7 +13,9 @@ Included by default:
 - Nix-based worker image
 - Node.js 22.x
 - `code-server`
+- VS Code Vim extension (`vscodevim.vim`)
 - OpenAI Codex CLI
+- `configure-github.sh` helper at `~/configure-github.sh` and `configure-github`
 - Docker in Docker
 - Git, GitHub CLI, tmux, ripgrep, Python 3
 

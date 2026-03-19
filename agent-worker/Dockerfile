@@ -17,7 +17,7 @@ FROM nixos/nix:latest
 
 ENV HOME=/home/kasm-user
 ENV WORKER_PROFILE=/nix/var/nix/profiles/agentswarm-worker
-ENV SHELL=/nix/var/nix/profiles/agentswarm-worker/bin/bash
+ENV SHELL=/nix/var/nix/profiles/agentswarm-worker/bin/zsh
 ENV NPM_CONFIG_PREFIX=/home/kasm-user/.local
 ENV PATH="/home/kasm-user/.local/bin:/nix/var/nix/profiles/agentswarm-worker/bin:/nix/var/nix/profiles/agentswarm-worker/sbin:$PATH"
 ENV CODEX_VERSION=0.115.0
@@ -36,7 +36,7 @@ RUN nix profile add --profile "$WORKER_PROFILE" --accept-flake-config /tmp/agent
 
 RUN printf '%s\n' \
       'root:x:0:0:System administrator:/root:/nix/var/nix/profiles/agentswarm-worker/bin/sh' \
-      'kasm-user:x:1000:1000:AgentSwarm worker:/home/kasm-user:/nix/var/nix/profiles/agentswarm-worker/bin/bash' \
+      'kasm-user:x:1000:1000:AgentSwarm worker:/home/kasm-user:/nix/var/nix/profiles/agentswarm-worker/bin/zsh' \
       > /etc/passwd \
     && printf '%s\n' \
       'root:x:0:' \
@@ -57,14 +57,18 @@ COPY --chown=1000:1000 agent-worker/dot_agent/skills /home/kasm-user/.codex/skil
 COPY --chown=1000:1000 agent-worker/code-server-settings.json /home/kasm-user/.local/share/code-server/User/settings.json
 COPY --chown=1000:1000 agent-worker/tmux.conf /home/kasm-user/.tmux.conf
 COPY --chown=1000:1000 agent-worker/bashrc /home/kasm-user/.bashrc
+COPY --chown=1000:1000 agent-worker/zshrc /home/kasm-user/.zshrc
 COPY --chown=1000:1000 agent-worker/setup.sh /home/kasm-user/setup.sh
+COPY --chown=1000:1000 configure-github.sh /home/kasm-user/configure-github.sh
 COPY --chown=1000:1000 agent-worker/orchestrator.py /home/kasm-user/orchestrator.py
 COPY --from=monitor-builder /app/apps/monitor/dist/index.js /usr/local/bin/monitor.js
 COPY --from=monitor-builder /app/apps/monitor/dist/native /usr/local/lib/bun-pty
 COPY agent-worker/docker-entrypoint.sh /usr/local/bin/agent-worker-entrypoint
 
-RUN chmod +x /home/kasm-user/orchestrator.py /usr/local/bin/agent-worker-entrypoint \
-    && mkdir -p /home/kasm-user/.cache/nix /home/kasm-user/.local/share/code-server/User /home/kasm-user/Desktop /home/kasm-user/Downloads /home/kasm-user/Uploads /home/kasm-user/workers \
+RUN chmod +x /home/kasm-user/configure-github.sh /home/kasm-user/orchestrator.py /usr/local/bin/agent-worker-entrypoint \
+    && ln -sf /home/kasm-user/configure-github.sh /usr/local/bin/configure-github \
+    && mkdir -p /home/kasm-user/.cache/nix /home/kasm-user/.local/share/code-server/User /home/kasm-user/.local/share/code-server/extensions /home/kasm-user/Desktop /home/kasm-user/Downloads /home/kasm-user/Uploads /home/kasm-user/workers \
+    && HOME=/home/kasm-user code-server --install-extension vscodevim.vim --extensions-dir /home/kasm-user/.local/share/code-server/extensions --force \
     && mkdir -p /nix/store /nix/var/log/nix /nix/var/nix/builds /nix/var/nix/db /nix/var/nix/daemon-socket /nix/var/nix/gcroots /nix/var/nix/profiles /nix/var/nix/temproots \
     && chown -R 1000:1000 /home/kasm-user /etc/nix /nix/var/nix/builds /nix/var/nix/db /nix/var/nix/gcroots /nix/var/nix/profiles /nix/var/nix/temproots /nix/var/log/nix \
     && chown 1000:1000 /nix/store /nix /nix/var /nix/var/nix

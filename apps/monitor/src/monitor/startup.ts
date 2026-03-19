@@ -4,12 +4,19 @@ import {
   TERMINAL_SESSION_NAME,
 } from "./constants"
 import { runTmuxCommand } from "./process"
-import { shellEscape, sleep } from "./utils"
+import { getWorkspaceDir, shellEscape, sleep } from "./utils"
 
 let startupPromise: Promise<void> | null = null
 
 async function ensureTmuxSession(sessionName: string) {
-  const result = await runTmuxCommand(["new-session", "-d", "-s", sessionName])
+  const result = await runTmuxCommand([
+    "new-session",
+    "-d",
+    "-s",
+    sessionName,
+    "-c",
+    getWorkspaceDir(),
+  ])
 
   if (
     result.exitCode === 0 ||

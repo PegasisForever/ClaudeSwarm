@@ -3,7 +3,17 @@ export function sleep(ms: number) {
 }
 
 export function getDefaultShell() {
-  return process.env.SHELL?.trim() || "bash"
+  return process.env.SHELL?.trim() || "zsh"
+}
+
+export function getWorkspaceDir() {
+  const workspaceDir = process.env.WORKSPACE_DIR?.trim()
+  if (workspaceDir) {
+    return workspaceDir
+  }
+
+  const homeDir = process.env.HOME?.trim() || "/home/kasm-user"
+  return `${homeDir}/workers`
 }
 
 export function shellEscape(value: string) {

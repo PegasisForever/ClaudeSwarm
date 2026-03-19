@@ -29,11 +29,51 @@ chown -R 1000:1000 "$HOME_DIR"
 "$NIX_DAEMON_BIN" >/tmp/nix-daemon.log 2>&1 &
 NIX_DAEMON_PID=$!
 
-dockerd \
-  --host=unix:///var/run/docker.sock \
-  --storage-driver=vfs \
-  >/tmp/dockerd.log 2>&1 &
-DOCKERD_PID=$!
+DOCKERD_PID=""
+
+cleanup_docker_runtime_state() {
+  local pid=""
+
+  for pidfile in \
+    /var/run/docker.pid \
+    /var/run/docker/containerd/containerd.pid \
+    /var/run/containerd/containerd.pid
+  do
+    if [ ! -f "$pidfile" ]; then
+      continue
+    fi
+
+    pid="$(cat "$pidfile" 2>/dev/null || true)"
+
+    if [ -n "$pid" ] && kill -0 "$pid" >/dev/null 2>&1; then
+      case "$(ps -p "$pid" -o comm= 2>/dev/null | tr -d "[:space:]")" in
+        dockerd|containerd)
+          kill "$pid" >/dev/null 2>&1 || true
+          wait "$pid" 2>/dev/null || true
+          ;;
+      esac
+    fi
+
+    rm -f "$pidfile"
+  done
+
+  pkill -x containerd >/dev/null 2>&1 || true
+  pkill -x dockerd >/dev/null 2>&1 || true
+}
+
+if docker info >/dev/null 2>&1; then
+  :
+else
+  cleanup_docker_runtime_state
+
+  if ! docker info >/dev/null 2>&1; then
+    dockerd \
+      --host=unix:///var/run/docker.sock \
+      --storage-driver=vfs \
+      >/tmp/dockerd.log 2>&1 &
+    DOCKERD_PID=$!
+  fi
+fi
 
 cleanup() {
   if kill -0 "$NIX_DAEMON_PID" >/dev/null 2>&1; then
@@ -41,7 +81,7 @@ cleanup() {
     wait "$NIX_DAEMON_PID" 2>/dev/null || true
   fi
 
-  if kill -0 "$DOCKERD_PID" >/dev/null 2>&1; then
+  if [ -n "$DOCKERD_PID" ] && kill -0 "$DOCKERD_PID" >/dev/null 2>&1; then
     kill "$DOCKERD_PID" >/dev/null 2>&1 || true
     wait "$DOCKERD_PID" 2>/dev/null || true
   fi
@@ -144,6 +184,29 @@ EOF
       export GIT_TERMINAL_PROMPT=0
     }
 
+    configure_github_auth() {
+      if [ -z "${GITHUB_TOKEN:-}" ]; then
+        return 0
+      fi
+
+      configure_github_askpass
+
+      if [ -n "${GITHUB_USERNAME:-}" ]; then
+        git config --global credential.username "$GITHUB_USERNAME"
+      fi
+
+      git config --global core.askPass "$GIT_ASKPASS"
+      git config --global credential.helper ""
+
+      if command -v gh >/dev/null 2>&1; then
+        if ! gh auth status >/dev/null 2>&1; then
+          printenv GITHUB_TOKEN | gh auth login --hostname github.com --with-token >/tmp/gh-auth.log 2>&1 || cat /tmp/gh-auth.log >&2
+        fi
+
+        gh auth setup-git >/tmp/gh-auth-setup-git.log 2>&1 || cat /tmp/gh-auth-setup-git.log >&2
+      fi
+    }
+
     clone_repository() {
       local repo_url="$1"
       local destination="$2"
@@ -172,8 +235,13 @@ EOF
         ensure_github_known_host
       fi
 
-      git clone "$repo_url" "$temp_dir"
-      mv "$temp_dir" "$destination"
+      if git clone "$repo_url" "$temp_dir"; then
+        mv "$temp_dir" "$destination"
+        return 0
+      fi
+
+      rm -rf "$temp_dir"
+      return 1
     }
 
     if [ -n "${STARTUP_REPO_URL}" ]; then
@@ -197,11 +265,25 @@ EOF
           rmdir "$WORKSPACE_DIR"
         fi
 
-        clone_repository "$STARTUP_REPO_URL" "$WORKSPACE_DIR"
+        if ! clone_repository "$STARTUP_REPO_URL" "$WORKSPACE_DIR"; then
+          echo "failed to clone startup repository: $STARTUP_REPO_URL" >&2
+          mkdir -p "$WORKSPACE_DIR"
+          cat > "$WORKSPACE_DIR/.agentswarm-startup-warning.txt" <<EOF
+AgentSwarm could not clone the requested startup repository:
+$STARTUP_REPO_URL
+
+The worker was created anyway and opened with an empty workspace at:
+$WORKSPACE_DIR
+
+Check container logs and GitHub credentials if this repository should have cloned successfully.
+EOF
+        fi
       fi
     else
       mkdir -p "$WORKSPACE_DIR"
     fi
+
+    configure_github_auth
 
     "$BUN_BIN" "$MONITOR_SCRIPT" >/tmp/monitor.log 2>&1 &
 
