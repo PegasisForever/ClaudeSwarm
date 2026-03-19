@@ -4,6 +4,17 @@ on:
   push:
     branches:
       - main
+    paths:
+      - Dockerfile
+      - package.json
+      - bun.lock
+      - turbo.json
+      - tsconfig.base.json
+      - configure-github.sh
+      - apps/backend/**
+      - apps/frontend/**
+      - apps/monitor/**
+      - agent-worker/**
 
 concurrency:
   group: docker-main
@@ -14,18 +25,78 @@ permissions:
   packages: write
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      should_build: ${{ steps.matrix.outputs.should_build }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Select images from changed files
+        id: matrix
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          CURRENT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          before_sha="$BEFORE_SHA"
+          if [ -z "$before_sha" ] || [ "$before_sha" = "0000000000000000000000000000000000000000" ]; then
+            before_sha="$(git rev-list --max-parents=0 "$CURRENT_SHA" | tail -n 1)"
+          fi
+
+          changed_files="$(git diff --name-only "$before_sha" "$CURRENT_SHA")"
+          app_changed=false
+          worker_changed=false
+
+          while IFS= read -r file; do
+            [ -z "$file" ] && continue
+
+            case "$file" in
+              Dockerfile|package.json|bun.lock|turbo.json|tsconfig.base.json|apps/backend/*|apps/backend/**|apps/frontend/*|apps/frontend/**)
+                app_changed=true
+                ;;
+            esac
+
+            case "$file" in
+              agent-worker/*|agent-worker/**|configure-github.sh|package.json|bun.lock|apps/monitor/*|apps/monitor/**)
+                worker_changed=true
+                ;;
+            esac
+          done <<< "$changed_files"
+
+          entries=()
+          if [ "$app_changed" = true ]; then
+            entries+=('{"image":"agentswarm","context":".","file":"./Dockerfile"}')
+          fi
+          if [ "$worker_changed" = true ]; then
+            entries+=('{"image":"agentswarm-worker","context":".","file":"./agent-worker/Dockerfile"}')
+          fi
+
+          if [ "${#entries[@]}" -eq 0 ]; then
+            echo 'should_build=false' >> "$GITHUB_OUTPUT"
+            echo 'matrix={"include":[]}' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo 'should_build=true' >> "$GITHUB_OUTPUT"
+          (
+            IFS=,
+            echo "matrix={\"include\":[${entries[*]}]}"
+          ) >> "$GITHUB_OUTPUT"
+
   docker:
+    needs: changes
+    if: needs.changes.outputs.should_build == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - image: agentswarm
-            context: .
-            file: ./Dockerfile
-          - image: agentswarm-worker
-            context: .
-            file: ./agent-worker/Dockerfile
+      matrix: ${{ fromJson(needs.changes.outputs.matrix) }}
 
     steps:
       - name: Check out repository

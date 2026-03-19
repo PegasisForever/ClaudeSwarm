@@ -15,6 +15,36 @@ REMOTE_WORKER_IMAGE_TAG="${REMOTE_WORKER_IMAGE_TAG:-ghcr.io/zangjiucheng/agentsw
 GENERATED_CONFIG_DIR="${GENERATED_CONFIG_DIR:-$ROOT_DIR/.agentswarm}"
 TMP_CONFIG_FILE=""
 
+find_python_bin() {
+  local candidate=""
+  local resolved=""
+
+  for candidate in "${PYTHON_BIN:-}" python python3 /usr/bin/python3 /usr/local/bin/python3 /bin/python3; do
+    if [ -z "$candidate" ]; then
+      continue
+    fi
+
+    if [[ "$candidate" = /* ]]; then
+      if [ ! -x "$candidate" ]; then
+        continue
+      fi
+      resolved="$candidate"
+    else
+      resolved="$(command -v "$candidate" 2>/dev/null || true)"
+      if [ -z "$resolved" ]; then
+        continue
+      fi
+    fi
+
+    if "$resolved" -c 'import sys; raise SystemExit(0 if sys.version_info[0] == 3 else 1)' >/dev/null 2>&1; then
+      printf '%s\n' "$resolved"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
 get_default_branch() {
   local ref
   ref="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true)"
@@ -113,7 +143,13 @@ if [ "$USE_REMOTE_IMAGES" -eq 1 ]; then
 
   mkdir -p "$GENERATED_CONFIG_DIR"
   TMP_CONFIG_FILE="$GENERATED_CONFIG_DIR/${CONTAINER_NAME}-config.json"
-  python3 - "$source_config_file" "$TMP_CONFIG_FILE" "$WORKER_IMAGE_TAG" <<'PY'
+  PYTHON_BIN="$(find_python_bin || true)"
+  if [ -z "$PYTHON_BIN" ]; then
+    echo "Python 3 is required to rewrite the generated config. Set PYTHON_BIN to a working interpreter if needed." >&2
+    exit 1
+  fi
+
+  "$PYTHON_BIN" - "$source_config_file" "$TMP_CONFIG_FILE" "$WORKER_IMAGE_TAG" <<'PY'
 import json
 import sys
 
