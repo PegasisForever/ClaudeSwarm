@@ -85,8 +85,22 @@ setup_sshd() {
   mkdir -p /etc/ssh /run/sshd
   chmod 755 /run/sshd
 
+  if [ -L /etc/passwd ]; then
+    cp -L /etc/passwd /tmp/passwd
+    rm -f /etc/passwd
+    cp /tmp/passwd /etc/passwd
+    chmod 644 /etc/passwd
+  fi
+
+  if [ -L /etc/shadow ]; then
+    cp -L /etc/shadow /tmp/shadow
+    rm -f /etc/shadow
+    cp /tmp/shadow /etc/shadow
+    chmod 600 /etc/shadow
+  fi
+
   if [ -n "$WORKER_SSH_PASSWORD" ]; then
-    printf 'kasm-user:%s\n' "$WORKER_SSH_PASSWORD" | "$CHPASSWD_BIN"
+    printf 'kasm-user:%s\n' "$WORKER_SSH_PASSWORD" | "$CHPASSWD_BIN" -c SHA512
   fi
 
   if [ ! -f /etc/ssh/ssh_host_ed25519_key ] || [ ! -f /etc/ssh/ssh_host_rsa_key ]; then
