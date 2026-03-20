@@ -43,6 +43,7 @@ export type WorkerInfo = {
 
 export type WorkerConnectionInfo = {
   available: boolean
+  sshPrivateKey: string | null
   sshPassword: string | null
   sshPort: number | null
   sshUser: string | null

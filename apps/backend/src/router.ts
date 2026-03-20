@@ -211,6 +211,7 @@ export const appRouter = router({
     .output(
       z.object({
         available: z.boolean(),
+        sshPrivateKey: z.string().nullable(),
         sshPassword: z.string().nullable(),
         sshPort: z.number().nullable(),
         sshUser: z.string().nullable(),
@@ -232,14 +233,19 @@ export const appRouter = router({
         getContainerEnv(input.id),
       ])
 
+      const sshPrivateKey = env.WORKER_SSH_PRIVATE_KEY?.trim() || null
       const sshPort = readPublishedPort(inspection, WORKER_SSH_PORT) ?? null
       const sshEnabled = env.WORKER_SSH_ENABLED === "1"
       const sshPassword = env.WORKER_SSH_PASSWORD?.trim() || null
       const workspaceDir = env.WORKSPACE_DIR?.trim() || "/home/kasm-user/workers"
-      const available = sshEnabled && sshPort !== null && sshPassword !== null
+      const available =
+        sshEnabled &&
+        sshPort !== null &&
+        (sshPrivateKey !== null || sshPassword !== null)
 
       return {
         available,
+        sshPrivateKey,
         sshPassword,
         sshPort,
         sshUser: available ? "kasm-user" : null,

@@ -92,6 +92,7 @@ export function WorkerWorkspace({
     const sshTarget = `${connection.sshUser}@${host}`
     return {
       command: `ssh ${sshTarget} -p ${connection.sshPort}`,
+      privateKey: connection.sshPrivateKey,
       password: connection.sshPassword,
       target: sshTarget,
       workspaceDir: connection.workspaceDir ?? "/home/kasm-user/workers",
@@ -252,7 +253,7 @@ export function WorkerWorkspace({
                 </Button>
               </div>
               {sshDetails ? (
-                <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center">
+                <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-start">
                   <Snippet
                     classNames={{
                       base: "bg-default-100 items-start",
@@ -263,20 +264,42 @@ export function WorkerWorkspace({
                   >
                     {sshDetails.command}
                   </Snippet>
-                  <Snippet
-                    classNames={{
-                      base: "bg-default-100 items-start",
-                      pre: "whitespace-pre-wrap break-all font-mono text-xs",
-                    }}
-                    symbol=""
-                    variant="flat"
-                  >
-                    {sshDetails.password ?? "Password unavailable"}
-                  </Snippet>
+                  {sshDetails.privateKey ? (
+                    <Snippet
+                      classNames={{
+                        base: "bg-default-100 items-start",
+                        pre: "whitespace-pre-wrap break-all font-mono text-xs",
+                      }}
+                      symbol=""
+                      variant="flat"
+                    >
+                      {sshDetails.privateKey}
+                    </Snippet>
+                  ) : (
+                    <Snippet
+                      classNames={{
+                        base: "bg-default-100 items-start",
+                        pre: "whitespace-pre-wrap break-all font-mono text-xs",
+                      }}
+                      symbol=""
+                      variant="flat"
+                    >
+                      {sshDetails.password ?? "SSH credential unavailable"}
+                    </Snippet>
+                  )}
                   <div className="text-default-400 text-xs">
                     <p>User: `kasm-user`</p>
                     <p>Workspace: `{sshDetails.workspaceDir}`</p>
-                    <p>Use VS Code Remote-SSH with the command on the left.</p>
+                    <p>
+                      {sshDetails.privateKey
+                        ? "Auth: private key"
+                        : "Auth: password"}
+                    </p>
+                    <p>
+                      {sshDetails.privateKey
+                        ? "Use the command on the left with the private key in the middle."
+                        : "Use VS Code Remote-SSH with the command on the left."}
+                    </p>
                   </div>
                 </div>
               ) : (

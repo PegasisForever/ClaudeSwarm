@@ -9,6 +9,7 @@ MONITOR_PORT="${MONITOR_PORT:-51301}"
 SSH_PORT="${SSH_PORT:-2222}"
 STARTUP_REPO_URL="${STARTUP_REPO_URL:-}"
 WORKER_SSH_ENABLED="${WORKER_SSH_ENABLED:-0}"
+WORKER_SSH_AUTHORIZED_KEY="${WORKER_SSH_AUTHORIZED_KEY:-}"
 WORKER_SSH_PASSWORD="${WORKER_SSH_PASSWORD:-}"
 BASH_BIN="$(readlink -f "$(command -v bash)")"
 SETPRIV_BIN="$(readlink -f "$(command -v setpriv)")"
@@ -114,6 +115,18 @@ setup_sshd() {
     printf '%s\n' 'sshd:x:74:74:Privilege-separated SSH:/var/empty:/bin/sh' >> /etc/passwd
   fi
 
+  mkdir -p "$HOME_DIR/.ssh"
+  chmod 700 "$HOME_DIR/.ssh"
+  touch "$HOME_DIR/.ssh/authorized_keys"
+  chmod 600 "$HOME_DIR/.ssh/authorized_keys"
+  chown -R 1000:1000 "$HOME_DIR/.ssh"
+
+  if [ -n "$WORKER_SSH_AUTHORIZED_KEY" ]; then
+    printf '%s\n' "$WORKER_SSH_AUTHORIZED_KEY" > "$HOME_DIR/.ssh/authorized_keys"
+    chmod 600 "$HOME_DIR/.ssh/authorized_keys"
+    chown 1000:1000 "$HOME_DIR/.ssh/authorized_keys"
+  fi
+
   if [ -n "$WORKER_SSH_PASSWORD" ]; then
     printf 'kasm-user:%s\n' "$WORKER_SSH_PASSWORD" | "$CHPASSWD_BIN" -c SHA512
   fi
@@ -134,7 +147,8 @@ AllowUsers kasm-user
 AuthorizedKeysFile .ssh/authorized_keys
 ChallengeResponseAuthentication no
 KbdInteractiveAuthentication no
-PasswordAuthentication yes
+PubkeyAuthentication yes
+PasswordAuthentication no
 PermitEmptyPasswords no
 PermitRootLogin no
 PidFile /run/sshd.pid
