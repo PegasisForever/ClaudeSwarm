@@ -25,7 +25,11 @@ export type WorkerInfo = {
   durationS: number
   port: number
   monitorPort: number
+  sshEnabled: boolean
   sshPort: number
+  createdWithVersion: string
+  currentAgentSwarmVersion: string
+  workerImageTag: string
   createdAt: number
   githubAccountId?: string
   githubAccountName?: string
@@ -53,6 +57,7 @@ export type WorkersResponse = {
 export type StartWorkerInput = {
   cloneRepositoryUrl?: string
   env: Record<string, string>
+  enableSsh?: boolean
   githubAccountId?: string
   preset: string
   title: string

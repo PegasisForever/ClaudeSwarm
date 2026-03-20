@@ -8,6 +8,7 @@ CODE_SERVER_PORT="${CODE_SERVER_PORT:-51300}"
 MONITOR_PORT="${MONITOR_PORT:-51301}"
 SSH_PORT="${SSH_PORT:-2222}"
 STARTUP_REPO_URL="${STARTUP_REPO_URL:-}"
+WORKER_SSH_ENABLED="${WORKER_SSH_ENABLED:-0}"
 WORKER_SSH_PASSWORD="${WORKER_SSH_PASSWORD:-}"
 BASH_BIN="$(readlink -f "$(command -v bash)")"
 SETPRIV_BIN="$(readlink -f "$(command -v setpriv)")"
@@ -82,8 +83,14 @@ else
 fi
 
 setup_sshd() {
+  if [ "$WORKER_SSH_ENABLED" != "1" ]; then
+    return 0
+  fi
+
   mkdir -p /etc/ssh /run/sshd
   chmod 755 /run/sshd
+  mkdir -p /var/empty
+  chmod 755 /var/empty
 
   if [ -L /etc/passwd ]; then
     cp -L /etc/passwd /tmp/passwd
@@ -97,6 +104,14 @@ setup_sshd() {
     rm -f /etc/shadow
     cp /tmp/shadow /etc/shadow
     chmod 600 /etc/shadow
+  fi
+
+  if ! grep -q '^sshd:' /etc/group; then
+    printf '%s\n' 'sshd:x:74:' >> /etc/group
+  fi
+
+  if ! grep -q '^sshd:' /etc/passwd; then
+    printf '%s\n' 'sshd:x:74:74:Privilege-separated SSH:/var/empty:/bin/sh' >> /etc/passwd
   fi
 
   if [ -n "$WORKER_SSH_PASSWORD" ]; then

@@ -3,6 +3,9 @@ import {
   docker,
   getKnownPresetNames,
   readPublishedPort,
+  currentAgentSwarmVersion,
+  WORKER_CREATED_WITH_VERSION_LABEL,
+  WORKER_IMAGE_TAG_LABEL,
   WORKER_MONITOR_PORT,
   WORKER_PARENT_LABEL,
   WORKER_PRESET_LABEL,
@@ -20,7 +23,11 @@ export type WorkerInfo = {
   status: "ready" | "error" | "stopped"
   port: number
   monitorPort: number
+  sshEnabled: boolean
   sshPort: number
+  createdWithVersion: string
+  currentAgentSwarmVersion: string
+  workerImageTag: string
   githubAccountId?: string
   githubAccountName?: string
   githubConfigured: boolean
@@ -95,6 +102,22 @@ async function inspectWorkerContainer(containerId: string) {
   return docker.getContainer(containerId).inspect()
 }
 
+function readContainerEnv(entries: string[] | undefined) {
+  const env: Record<string, string> = {}
+
+  for (const entry of entries ?? []) {
+    const eqIdx = entry.indexOf("=")
+
+    if (eqIdx < 0) {
+      continue
+    }
+
+    env[entry.slice(0, eqIdx)] = entry.slice(eqIdx + 1)
+  }
+
+  return env
+}
+
 async function loadWorkers(): Promise<WorkersResult> {
   const knownPresets = getKnownPresetNames()
   const containers = await docker.listContainers({ all: true })
@@ -106,9 +129,11 @@ async function loadWorkers(): Promise<WorkersResult> {
   const allWorkers = await Promise.all(
     workerContainers.map(async (container) => {
       const inspection = await inspectWorkerContainer(container.Id)
+      const env = readContainerEnv(inspection.Config.Env)
       const port = readPublishedPort(inspection)
       const monitorPort = readPublishedPort(inspection, WORKER_MONITOR_PORT)
       const sshPort = readPublishedPort(inspection, WORKER_SSH_PORT)
+      const sshEnabled = env.WORKER_SSH_ENABLED === "1"
       const monitorStatus = getContainerMonitorStatus(inspection)
       const githubAccount = getEffectiveGithubAccountForWorker(container.Id)
 
@@ -132,7 +157,17 @@ async function loadWorkers(): Promise<WorkersResult> {
           status: monitorStatus.status,
           port: port ?? 0,
           monitorPort: monitorPort ?? 0,
+          sshEnabled,
           sshPort: sshPort ?? 0,
+          createdWithVersion:
+            inspection.Config.Labels?.[WORKER_CREATED_WITH_VERSION_LABEL] ??
+            container.Labels?.[WORKER_CREATED_WITH_VERSION_LABEL] ??
+            "unknown",
+          currentAgentSwarmVersion,
+          workerImageTag:
+            inspection.Config.Labels?.[WORKER_IMAGE_TAG_LABEL] ??
+            container.Labels?.[WORKER_IMAGE_TAG_LABEL] ??
+            inspection.Config.Image,
           githubAccountId: githubAccount.accountId,
           githubAccountName: githubAccount.account?.name,
           githubConfigured: githubAccount.githubConfigured,

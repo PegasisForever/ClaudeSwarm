@@ -294,6 +294,8 @@ DOCKER_ARGS=(
   run
   -d
   --name "$CONTAINER_NAME"
+  -e "AGENTSWARM_VERSION=$IMAGE_TAG"
+  -e "AGENTSWARM_WORKER_VERSION=$WORKER_IMAGE_TAG"
   -e "PORT=$PORT"
   -p "$PORT:$PORT"
   -v /var/run/docker.sock:/var/run/docker.sock

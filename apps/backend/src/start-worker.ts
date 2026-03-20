@@ -9,7 +9,10 @@ import {
   WORKER_SSH_PORT,
   WORKER_WORKSPACE_VOLUME_LABEL,
   selfIp,
+  currentAgentSwarmVersion,
   WORKER_WEB_PORT,
+  WORKER_CREATED_WITH_VERSION_LABEL,
+  WORKER_IMAGE_TAG_LABEL,
   WORKER_PRESET_LABEL,
   WORKER_TITLE_LABEL,
 } from "./worker-container"
@@ -28,6 +31,7 @@ type StartWorkerParams = {
   title: string
   preset: string
   env: Record<string, string>
+  enableSsh?: boolean
   githubAccountId?: string
   cloneRepositoryUrl?: string
   labels?: Record<string, string>
@@ -141,6 +145,7 @@ export async function startWorkerContainer({
   title,
   preset,
   env,
+  enableSsh,
   githubAccountId,
   cloneRepositoryUrl,
   labels,
@@ -165,16 +170,23 @@ export async function startWorkerContainer({
       ? { ORCHESTRATOR_ADDRESS: selfIp, ORCHESTRATOR_PORT: String(port) }
       : {}
   const secretEnv = getWorkerSecretEnv({ accountId: githubAccountId })
-  const sshEnv = {
-    SSH_PORT: "2222",
-    WORKER_SSH_PASSWORD: env.WORKER_SSH_PASSWORD?.trim() || createWorkerSshPassword(),
-  }
+  const sshEnabled = enableSsh ?? env.WORKER_SSH_ENABLED === "1"
+  const sshEnv = sshEnabled
+    ? {
+        SSH_PORT: "2222",
+        WORKER_SSH_ENABLED: "1",
+        WORKER_SSH_PASSWORD:
+          env.WORKER_SSH_PASSWORD?.trim() || createWorkerSshPassword(),
+      }
+    : {
+        WORKER_SSH_ENABLED: "0",
+      }
   const mergedEnv = {
     ...orchestratorEnv,
     ...selectedPreset.presetEnv,
     ...secretEnv,
-    ...sshEnv,
     ...env,
+    ...sshEnv,
     ...startupEnv,
   }
 
@@ -194,13 +206,13 @@ export async function startWorkerContainer({
     ExposedPorts: {
       [WORKER_WEB_PORT]: {},
       [WORKER_MONITOR_PORT]: {},
-      [WORKER_SSH_PORT]: {},
+      ...(sshEnabled ? { [WORKER_SSH_PORT]: {} } : {}),
     },
     HostConfig: {
       PortBindings: {
         [WORKER_WEB_PORT]: [{ HostPort: "" }],
         [WORKER_MONITOR_PORT]: [{ HostPort: "" }],
-        [WORKER_SSH_PORT]: [{ HostPort: "" }],
+        ...(sshEnabled ? { [WORKER_SSH_PORT]: [{ HostPort: "" }] } : {}),
       },
       Binds: [`${resolvedWorkspaceVolumeName}:${WORKSPACE_ROOT}`],
       ShmSize: SHARED_MEMORY_BYTES,
@@ -209,6 +221,8 @@ export async function startWorkerContainer({
       Privileged: true,
     },
     Labels: {
+      [WORKER_CREATED_WITH_VERSION_LABEL]: currentAgentSwarmVersion,
+      [WORKER_IMAGE_TAG_LABEL]: selectedPreset.imageTag,
       [WORKER_PRESET_LABEL]: selectedPreset.name,
       [WORKER_TITLE_LABEL]: title,
       [WORKER_WORKSPACE_VOLUME_LABEL]: resolvedWorkspaceVolumeName,

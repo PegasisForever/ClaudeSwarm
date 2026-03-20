@@ -45,6 +45,7 @@ export function DashboardPage() {
   })
   const destroyWorker = trpc.destroyWorker.useMutation()
   const replaceWorker = trpc.replaceWorker.useMutation()
+  const setWorkerSsh = trpc.setWorkerSsh.useMutation()
   const startExistingWorker = trpc.startExistingWorker.useMutation()
   const stopWorker = trpc.stopWorker.useMutation()
   const prevStatusById = useRef<Map<string, string>>(new Map())
@@ -125,6 +126,18 @@ export function DashboardPage() {
     }
   }
 
+  const handleSetWorkerSsh = async (id: string, enabled: boolean) => {
+    try {
+      const replacement = await setWorkerSsh.mutateAsync({ enabled, id })
+      await workersQuery.refetch()
+      void navigate(`/${replacement.id}`)
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to update worker SSH"
+      window.alert(message)
+    }
+  }
+
   const handleStopWorker = async (id: string) => {
     await stopWorker.mutateAsync({ id })
     await workersQuery.refetch()
@@ -166,6 +179,9 @@ export function DashboardPage() {
                   isReplacing={
                     replaceWorker.isPending && replaceWorker.variables?.id === worker.id
                   }
+                  isUpdatingSsh={
+                    setWorkerSsh.isPending && setWorkerSsh.variables?.id === worker.id
+                  }
                   isStarting={
                     startExistingWorker.isPending &&
                     startExistingWorker.variables?.id === worker.id
@@ -176,6 +192,7 @@ export function DashboardPage() {
                   key={worker.id}
                   onDestroyWorker={handleDestroyWorker}
                   onReplaceWorker={handleReplaceWorker}
+                  onSetWorkerSsh={handleSetWorkerSsh}
                   onStartWorker={handleStartWorker}
                   onStopWorker={handleStopWorker}
                   state={getWorkerState(worker.id)}

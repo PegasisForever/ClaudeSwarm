@@ -10,7 +10,7 @@ import {
 import { useState } from "react"
 import { Link, useParams } from "react-router"
 import type { GlobalSettings, PresetInfo, WorkerInfo } from "../lib/api-types"
-import { formatDuration, statusTone } from "../lib/format"
+import { formatDuration, formatVersionLabel, statusTone } from "../lib/format"
 import { AddWorkerModal } from "./add-worker-modal"
 import { BrandLogo } from "./brand-logo"
 import { GlobalSettingsModal } from "./global-settings-modal"
@@ -111,6 +111,7 @@ function WorkerItem({
 }: WorkerListItemProps) {
   const { id } = useParams<{ id: string }>()
   const isActive = id === worker.id
+  const displayStatus = isReplacing ? "migrating" : worker.status
 
   return (
     <div className={`flex items-start gap-1 pr-2 ${isActive ? "bg-gray-700" : ""}`}>
@@ -126,12 +127,15 @@ function WorkerItem({
         </p>
         <p className="text-sm">
           <span
-            className={`inline-block h-2.5 w-2.5 shrink-0 rounded-full ${statusTone(worker.status)}`}
+            className={`inline-block h-2.5 w-2.5 shrink-0 rounded-full ${statusTone(displayStatus)}`}
           />
           <span className="ml-2 text-gray-300">{worker.preset}</span>
-          <span className="ml-2 text-gray-500 uppercase">{worker.status}</span>
+          <span className="ml-2 text-gray-500 uppercase">{displayStatus}</span>
         </p>
         <p className="mt-2 text-base text-wrap">{worker.title}</p>
+        <p className="mt-1 text-xs text-gray-500">
+          created {formatVersionLabel(worker.createdWithVersion)} / current {formatVersionLabel(worker.currentAgentSwarmVersion)}
+        </p>
       </Button>
       <WorkerControls
         isDestroying={isDestroying}
@@ -161,6 +165,7 @@ function SubWorkerItem({
 }: WorkerListItemProps) {
   const { id } = useParams<{ id: string }>()
   const isActive = id === worker.id
+  const displayStatus = isReplacing ? "migrating" : worker.status
 
   return (
     <div className={`flex items-start gap-1 pr-2 ${isActive ? "bg-gray-700" : ""}`}>
@@ -176,12 +181,15 @@ function SubWorkerItem({
         </p>
         <p className="text-xs">
           <span
-            className={`inline-block h-2 w-2 shrink-0 rounded-full ${statusTone(worker.status)}`}
+            className={`inline-block h-2 w-2 shrink-0 rounded-full ${statusTone(displayStatus)}`}
           />
           <span className="ml-2 text-gray-300">{worker.preset}</span>
-          <span className="ml-2 text-gray-500 uppercase">{worker.status}</span>
+          <span className="ml-2 text-gray-500 uppercase">{displayStatus}</span>
         </p>
         <p className="mt-1 text-sm text-wrap">{worker.title}</p>
+        <p className="mt-1 text-[11px] text-gray-500">
+          {formatVersionLabel(worker.createdWithVersion)} -> {formatVersionLabel(worker.currentAgentSwarmVersion)}
+        </p>
       </Button>
       <WorkerControls
         isDestroying={isDestroying}

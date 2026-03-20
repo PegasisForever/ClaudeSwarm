@@ -1,5 +1,6 @@
 import {
   Button,
+  Checkbox,
   Input,
   Modal,
   ModalBody,
@@ -35,6 +36,7 @@ export function AddWorkerModal({
   const [title, setTitle] = useState("")
   const [presetName, setPresetName] = useState("")
   const [cloneRepositoryUrl, setCloneRepositoryUrl] = useState("")
+  const [enableSsh, setEnableSsh] = useState(false)
   const [githubAccountSelection, setGithubAccountSelection] =
     useState<string>("default")
   const [envValues, setEnvValues] = useState<Record<string, string>>({})
@@ -75,6 +77,7 @@ export function AddWorkerModal({
       env: Object.fromEntries(
         selectedPreset.requiredEnv.map((key) => [key, envValues[key] ?? ""]),
       ),
+      ...(enableSsh ? { enableSsh: true } : {}),
       ...(githubAccountSelection !== "default"
         ? { githubAccountId: githubAccountSelection }
         : {}),
@@ -89,6 +92,7 @@ export function AddWorkerModal({
     title,
     selectedPreset,
     envValues,
+    enableSsh,
     githubAccountSelection,
     cloneRepositoryUrl,
   ])
@@ -98,6 +102,7 @@ export function AddWorkerModal({
       setTitle("")
       setPresetName("")
       setCloneRepositoryUrl("")
+      setEnableSsh(false)
       setGithubAccountSelection("default")
       setEnvValues({})
       setShowLongLoadHint(false)
@@ -160,6 +165,13 @@ export function AddWorkerModal({
                 placeholder="https://github.com/org/repo.git or git@github.com:org/repo.git"
                 value={cloneRepositoryUrl}
               />
+
+              <Checkbox
+                isSelected={enableSsh}
+                onValueChange={setEnableSsh}
+              >
+                Enable SSH for VS Code Remote-SSH
+              </Checkbox>
 
               <Select
                 description="Optional. Choose a saved GitHub account now, or let this worker follow the current default account."
@@ -243,6 +255,7 @@ export function AddWorkerModal({
                     }
 
                     startWorker.mutate({
+                      ...(enableSsh ? { enableSsh: true } : {}),
                       ...(githubAccountSelection !== "default"
                         ? { githubAccountId: githubAccountSelection }
                         : {}),

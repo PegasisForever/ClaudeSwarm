@@ -11,22 +11,12 @@ export const WORKER_PRESET_LABEL = "agentswarm.preset"
 export const WORKER_TITLE_LABEL = "agentswarm.title"
 export const WORKER_PARENT_LABEL = "agentswarm.parent"
 export const WORKER_WORKSPACE_VOLUME_LABEL = "agentswarm.workspace-volume"
+export const WORKER_CREATED_WITH_VERSION_LABEL = "agentswarm.created-with-version"
+export const WORKER_IMAGE_TAG_LABEL = "agentswarm.worker-image-tag"
 
 export let selfIp: string | undefined
+export let currentAgentSwarmVersion = "unknown"
 let runtimeInitialized = false
-
-async function inspectSelfIp() {
-  const containerId = hostname()
-  const container = docker.getContainer(containerId)
-  const inspection = await container.inspect()
-  const network = Object.values(inspection.NetworkSettings.Networks)[0]
-
-  if (!network?.IPAddress) {
-    throw new Error("No IP address found in container network settings")
-  }
-
-  return network.IPAddress
-}
 
 export async function initializeWorkerContainerRuntime() {
   if (runtimeInitialized) {
@@ -36,7 +26,20 @@ export async function initializeWorkerContainerRuntime() {
   runtimeInitialized = true
 
   try {
-    selfIp = await inspectSelfIp()
+    const containerId = hostname()
+    const container = docker.getContainer(containerId)
+    const inspection = await container.inspect()
+    const network = Object.values(inspection.NetworkSettings.Networks)[0]
+
+    if (!network?.IPAddress) {
+      throw new Error("No IP address found in container network settings")
+    }
+
+    selfIp = network.IPAddress
+    currentAgentSwarmVersion =
+      process.env.AGENTSWARM_VERSION?.trim() ||
+      inspection.Config.Image ||
+      "unknown"
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Unknown error"
@@ -45,6 +48,7 @@ export async function initializeWorkerContainerRuntime() {
       `[backend] failed to detect own container IP; ORCHESTRATOR_ADDRESS will not be set: ${message}`,
     )
     selfIp = undefined
+    currentAgentSwarmVersion = process.env.AGENTSWARM_VERSION?.trim() || "unknown"
   }
 }
 

@@ -40,8 +40,11 @@ function sanitizeReplacementEnv(env: Record<string, string>) {
     "PATH",
     "PWD",
     "SHELL",
+    "SSH_PORT",
     "SHLVL",
     "USER",
+    "WORKER_SSH_ENABLED",
+    "WORKER_SSH_PASSWORD",
     "WORKER_PROFILE",
   ]) {
     delete nextEnv[key]
@@ -127,7 +130,10 @@ export async function stopManagedWorkerContainer(id: string) {
   clearWorkersCache()
 }
 
-export async function replaceManagedWorkerContainer(id: string) {
+export async function replaceManagedWorkerContainer(
+  id: string,
+  options?: { enableSsh?: boolean },
+) {
   const container = await findManagedContainerById(id)
 
   if (!container) {
@@ -164,6 +170,7 @@ export async function replaceManagedWorkerContainer(id: string) {
 
   try {
     replacement = await startWorkerContainer({
+      enableSsh: options?.enableSsh,
       env,
       githubAccountId,
       labels: parentId ? { [WORKER_PARENT_LABEL]: parentId } : undefined,
@@ -176,6 +183,10 @@ export async function replaceManagedWorkerContainer(id: string) {
       throw new Error(
         "Replacement worker failed its health check; the original worker was kept",
       )
+    }
+
+    if (!wasRunning) {
+      await stopManagedWorkerContainer(replacement.id)
     }
 
     transferWorkerGithubAccount(id, replacement.id)

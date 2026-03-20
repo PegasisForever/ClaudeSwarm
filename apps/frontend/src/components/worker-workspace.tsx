@@ -8,6 +8,8 @@ import {
   Snippet,
 } from "@heroui/react"
 import {
+  IconChevronDown,
+  IconChevronRight,
   IconBrandGithub,
   IconRefresh,
   IconExternalLink,
@@ -27,10 +29,12 @@ type WorkerWorkspaceState = "active" | "cached" | "unloaded"
 type WorkerWorkspaceProps = {
   globalSettings: GlobalSettings
   isReplacing: boolean
+  isUpdatingSsh: boolean
   isStarting: boolean
   isStopping: boolean
   onDestroyWorker: (id: string) => Promise<void>
   onReplaceWorker: (id: string) => Promise<void>
+  onSetWorkerSsh: (id: string, enabled: boolean) => Promise<void>
   onStartWorker: (id: string) => Promise<void>
   onStopWorker: (id: string) => Promise<void>
   state: WorkerWorkspaceState
@@ -40,10 +44,12 @@ type WorkerWorkspaceProps = {
 export function WorkerWorkspace({
   globalSettings,
   isReplacing,
+  isUpdatingSsh,
   isStarting,
   isStopping,
   onDestroyWorker,
   onReplaceWorker,
+  onSetWorkerSsh,
   onStartWorker,
   onStopWorker,
   state,
@@ -52,6 +58,7 @@ export function WorkerWorkspace({
   const [destroyModalOpen, setDestroyModalOpen] = useState(false)
   const [githubModalOpen, setGithubModalOpen] = useState(false)
   const [isDestroying, setIsDestroying] = useState(false)
+  const [sshPanelOpen, setSshPanelOpen] = useState(false)
 
   if (state === "unloaded") {
     return null
@@ -68,7 +75,7 @@ export function WorkerWorkspace({
   const workerConnectionQuery = trpc.workerConnection.useQuery(
     { id: worker.id },
     {
-      enabled: state === "active",
+      enabled: state === "active" && sshPanelOpen && worker.sshEnabled,
       refetchInterval: 10_000,
       refetchOnWindowFocus: false,
     },
@@ -164,6 +171,32 @@ export function WorkerWorkspace({
           >
             Migrate
           </Button>
+          {worker.sshEnabled ? (
+            <Button
+              isLoading={isUpdatingSsh}
+              onPress={() => setSshPanelOpen((open) => !open)}
+              size="sm"
+              startContent={
+                sshPanelOpen ? (
+                  <IconChevronDown size={16} />
+                ) : (
+                  <IconChevronRight size={16} />
+                )
+              }
+              variant="light"
+            >
+              SSH
+            </Button>
+          ) : (
+            <Button
+              isLoading={isUpdatingSsh}
+              onPress={() => void onSetWorkerSsh(worker.id, true)}
+              size="sm"
+              variant="light"
+            >
+              Enable SSH
+            </Button>
+          )}
           <Button
             color={isStopped ? "success" : "default"}
             isLoading={isStarting || isStopping}
@@ -206,43 +239,55 @@ export function WorkerWorkspace({
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col">
-          <div className="border-b border-gray-800 bg-[#222222] px-4 py-3">
-            {sshDetails ? (
-              <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center">
-                <Snippet
-                  classNames={{
-                    base: "bg-default-100 items-start",
-                    pre: "whitespace-pre-wrap break-all font-mono text-xs",
-                  }}
-                  symbol=""
+          {worker.sshEnabled && sshPanelOpen ? (
+            <div className="border-b border-gray-800 bg-[#222222] px-4 py-3">
+              <div className="mb-3 flex justify-end">
+                <Button
+                  isLoading={isUpdatingSsh}
+                  onPress={() => void onSetWorkerSsh(worker.id, false)}
+                  size="sm"
                   variant="flat"
                 >
-                  {sshDetails.command}
-                </Snippet>
-                <Snippet
-                  classNames={{
-                    base: "bg-default-100 items-start",
-                    pre: "whitespace-pre-wrap break-all font-mono text-xs",
-                  }}
-                  symbol=""
-                  variant="flat"
-                >
-                  {sshDetails.password ?? "Password unavailable"}
-                </Snippet>
-                <div className="text-default-400 text-xs">
-                  <p>User: `kasm-user`</p>
-                  <p>Workspace: `{sshDetails.workspaceDir}`</p>
-                  <p>Use VS Code Remote-SSH with the command on the left.</p>
-                </div>
+                  Disable SSH
+                </Button>
               </div>
-            ) : (
-              <p className="text-default-500 text-xs">
-                {workerConnectionQuery.isLoading
-                  ? "Loading VS Code Remote-SSH connection details..."
-                  : "VS Code Remote-SSH is unavailable for this worker. Recreate or migrate older workers to enable SSH access."}
-              </p>
-            )}
-          </div>
+              {sshDetails ? (
+                <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center">
+                  <Snippet
+                    classNames={{
+                      base: "bg-default-100 items-start",
+                      pre: "whitespace-pre-wrap break-all font-mono text-xs",
+                    }}
+                    symbol=""
+                    variant="flat"
+                  >
+                    {sshDetails.command}
+                  </Snippet>
+                  <Snippet
+                    classNames={{
+                      base: "bg-default-100 items-start",
+                      pre: "whitespace-pre-wrap break-all font-mono text-xs",
+                    }}
+                    symbol=""
+                    variant="flat"
+                  >
+                    {sshDetails.password ?? "Password unavailable"}
+                  </Snippet>
+                  <div className="text-default-400 text-xs">
+                    <p>User: `kasm-user`</p>
+                    <p>Workspace: `{sshDetails.workspaceDir}`</p>
+                    <p>Use VS Code Remote-SSH with the command on the left.</p>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-default-500 text-xs">
+                  {workerConnectionQuery.isLoading
+                    ? "Loading VS Code Remote-SSH connection details..."
+                    : "VS Code Remote-SSH is unavailable for this worker. Recreate or migrate older workers to enable SSH access."}
+                </p>
+              )}
+            </div>
+          ) : null}
 
           {hasWorkerPort && isReady ? (
             <iframe

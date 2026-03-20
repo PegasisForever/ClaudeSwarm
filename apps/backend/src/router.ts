@@ -53,7 +53,11 @@ const workerSchema = z.object({
   status: workerStatusSchema,
   port: z.number(),
   monitorPort: z.number(),
+  sshEnabled: z.boolean(),
   sshPort: z.number(),
+  createdWithVersion: z.string(),
+  currentAgentSwarmVersion: z.string(),
+  workerImageTag: z.string(),
   githubAccountId: z.string().optional(),
   githubAccountName: z.string().optional(),
   githubConfigured: z.boolean(),
@@ -229,9 +233,10 @@ export const appRouter = router({
       ])
 
       const sshPort = readPublishedPort(inspection, WORKER_SSH_PORT) ?? null
+      const sshEnabled = env.WORKER_SSH_ENABLED === "1"
       const sshPassword = env.WORKER_SSH_PASSWORD?.trim() || null
       const workspaceDir = env.WORKSPACE_DIR?.trim() || "/home/kasm-user/workers"
-      const available = sshPort !== null && sshPassword !== null
+      const available = sshEnabled && sshPort !== null && sshPassword !== null
 
       return {
         available,
@@ -317,6 +322,36 @@ export const appRouter = router({
         })
       }
     }),
+  setWorkerSsh: publicProcedure
+    .input(
+      z.object({
+        enabled: z.boolean(),
+        id: z.string(),
+      }),
+    )
+    .output(
+      z.object({
+        id: z.string(),
+        port: z.number(),
+        healthy: z.boolean(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      try {
+        return await replaceManagedWorkerContainer(input.id, {
+          enableSsh: input.enabled,
+        })
+      } catch (error) {
+        console.error("[setWorkerSsh] failed to update worker SSH", error)
+
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message:
+            error instanceof Error ? error.message : "Failed to update worker SSH",
+          cause: error,
+        })
+      }
+    }),
   destroyWorker: publicProcedure
     .input(
       z.object({
@@ -369,6 +404,7 @@ export const appRouter = router({
         title: z.string(),
         preset: z.string(),
         env: z.record(z.string(), z.string()),
+        enableSsh: z.boolean().optional(),
         githubAccountId: z.string().trim().optional(),
         cloneRepositoryUrl: z.string().trim().min(1).optional(),
       }),
