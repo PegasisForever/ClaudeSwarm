@@ -49,13 +49,7 @@ export function DashboardPage() {
   const startExistingWorker = trpc.startExistingWorker.useMutation()
   const stopWorker = trpc.stopWorker.useMutation()
   const prevStatusById = useRef<Map<string, string>>(new Map())
-
-  useEffect(() => {
-    if (!("Notification" in window)) return
-    if (Notification.permission === "default") {
-      void Notification.requestPermission()
-    }
-  }, [])
+  const hasRequestedNotificationPermission = useRef(false)
 
   const workers = workersQuery.data?.workers ?? EMPTY_WORKERS
   const hierarchy = workersQuery.data?.hierarchy ?? EMPTY_HIERARCHY
@@ -144,9 +138,25 @@ export function DashboardPage() {
     await workersQuery.refetch()
   }
 
+  const handleUserInteraction = () => {
+    if (
+      hasRequestedNotificationPermission.current ||
+      !("Notification" in window) ||
+      Notification.permission !== "default"
+    ) {
+      return
+    }
+
+    hasRequestedNotificationPermission.current = true
+    void Notification.requestPermission()
+  }
+
   return (
     <>
-      <div className="bg-background text-foreground flex min-h-screen">
+      <div
+        className="bg-background text-foreground flex min-h-screen"
+        onPointerDownCapture={handleUserInteraction}
+      >
         <WorkerSidebar
           globalSettings={globalSettings}
           isDestroyingWorker={(id) =>

@@ -153,7 +153,8 @@ export async function replaceManagedWorkerContainer(
     )
   }
 
-  const env = sanitizeReplacementEnv(await getContainerEnv(id))
+  const originalEnv = await getContainerEnv(id)
+  const env = sanitizeReplacementEnv(originalEnv)
   const title =
     inspection.Config.Labels?.[WORKER_TITLE_LABEL] ??
     inspection.Name.replace(/^\//, "")
@@ -162,6 +163,7 @@ export async function replaceManagedWorkerContainer(
   const parentId = inspection.Config.Labels?.[WORKER_PARENT_LABEL]
   const githubAccountId = getStoredGithubAccountIdForWorker(id)
   const wasRunning = inspection.State.Running
+  const currentSshEnabled = originalEnv.WORKER_SSH_ENABLED === "1"
 
   let replacement:
     | Awaited<ReturnType<typeof startWorkerContainer>>
@@ -173,7 +175,7 @@ export async function replaceManagedWorkerContainer(
 
   try {
     replacement = await startWorkerContainer({
-      enableSsh: options?.enableSsh,
+      enableSsh: options?.enableSsh ?? currentSshEnabled,
       env,
       githubAccountId,
       labels: parentId ? { [WORKER_PARENT_LABEL]: parentId } : undefined,

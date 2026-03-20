@@ -1,5 +1,7 @@
 GITHUB_ENV_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/agentswarm/github.env"
+AGENTSWARM_ENV_FILE="$HOME/.agentswarm-shell-env"
 
+[ -f "$AGENTSWARM_ENV_FILE" ] && source "$AGENTSWARM_ENV_FILE"
 [ -f "$GITHUB_ENV_FILE" ] && source "$GITHUB_ENV_FILE"
 
 PS1='%n@%m:%~$ '

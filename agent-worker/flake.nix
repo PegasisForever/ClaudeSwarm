@@ -57,7 +57,7 @@
             python3
             ripgrep
             shadow
-            stdenv.cc.cc
+            stdenv.cc
             stdenv.cc.cc.lib
             tmux
             util-linux

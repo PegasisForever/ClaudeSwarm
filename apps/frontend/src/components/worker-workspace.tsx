@@ -42,6 +42,20 @@ type WorkerWorkspaceProps = {
   worker: WorkerInfo
 }
 
+function normalizeSshHost(rawHost: string) {
+  const trimmedHost = rawHost.trim()
+
+  if (!trimmedHost) {
+    return "localhost"
+  }
+
+  if (trimmedHost.startsWith("[") && trimmedHost.endsWith("]")) {
+    return trimmedHost.slice(1, -1)
+  }
+
+  return trimmedHost
+}
+
 type CopyableBlockProps = {
   copied: boolean
   label: string
@@ -124,9 +138,9 @@ export function WorkerWorkspace({
   const [githubModalOpen, setGithubModalOpen] = useState(false)
   const [isDestroying, setIsDestroying] = useState(false)
   const [sshPanelOpen, setSshPanelOpen] = useState(false)
-  const [copiedSshField, setCopiedSshField] = useState<"command" | "credential" | null>(
-    null,
-  )
+  const [copiedSshField, setCopiedSshField] = useState<
+    "alias" | "command" | "config" | "credential" | null
+  >(null)
   const copyResetTimeoutRef = useRef<number | null>(null)
 
   useEffect(() => {
@@ -136,10 +150,6 @@ export function WorkerWorkspace({
       }
     }
   }, [])
-
-  if (state === "unloaded") {
-    return null
-  }
 
   const hiddenClass =
     state === "active"
@@ -165,14 +175,25 @@ export function WorkerWorkspace({
       return null
     }
 
-    const host = window.location.hostname
+    const host = normalizeSshHost(window.location.hostname)
     const sshTarget = `${connection.sshUser}@${host}`
+    const configAlias = `agentswarm-${worker.id.slice(0, 8)}`
     const password = connection.sshPassword
     const privateKey = connection.sshPrivateKey
 
     return {
       authMethod: connection.sshAuthMode,
+      alias: configAlias,
       command: `ssh ${sshTarget} -p ${connection.sshPort}`,
+      config: [
+        `Host ${configAlias}`,
+        `  HostName ${host}`,
+        `  User ${connection.sshUser}`,
+        `  Port ${connection.sshPort}`,
+        ...(connection.sshAuthMode === "publicKey"
+          ? ["  IdentitiesOnly yes", "  IdentityFile ~/.ssh/id_ed25519"]
+          : []),
+      ].join("\n"),
       credentialLabel:
         connection.sshAuthMode === "password"
           ? "Password"
@@ -190,7 +211,7 @@ export function WorkerWorkspace({
       target: sshTarget,
       workspaceDir: connection.workspaceDir ?? "/home/kasm-user/workers",
     }
-  }, [workerConnectionQuery.data])
+  }, [worker.id, workerConnectionQuery.data])
 
   const handleDestroy = async () => {
     setIsDestroying(true)
@@ -203,7 +224,7 @@ export function WorkerWorkspace({
   }
 
   const handleCopySshField = async (
-    field: "command" | "credential",
+    field: "alias" | "command" | "config" | "credential",
     value: string,
   ) => {
     try {
@@ -221,6 +242,10 @@ export function WorkerWorkspace({
     } catch {
       window.alert("Failed to copy SSH content to the clipboard")
     }
+  }
+
+  if (state === "unloaded") {
+    return null
   }
 
   return (
@@ -367,10 +392,22 @@ export function WorkerWorkspace({
                 </Button>
               </div>
               {sshDetails ? (
-                <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-start">
+                <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] xl:items-start">
+                  <CopyableBlock
+                    copied={copiedSshField === "alias"}
+                    label="VS Code host alias"
+                    onCopy={() => handleCopySshField("alias", sshDetails.alias)}
+                    value={sshDetails.alias}
+                  />
+                  <CopyableBlock
+                    copied={copiedSshField === "config"}
+                    label="VS Code SSH config"
+                    onCopy={() => handleCopySshField("config", sshDetails.config)}
+                    value={sshDetails.config}
+                  />
                   <CopyableBlock
                     copied={copiedSshField === "command"}
-                    label="SSH command"
+                    label="Terminal command"
                     onCopy={() => handleCopySshField("command", sshDetails.command)}
                     value={sshDetails.command}
                   />
@@ -413,6 +450,9 @@ export function WorkerWorkspace({
                         : sshDetails.authMethod === "password"
                           ? "Use the command on the left with the password in the middle."
                           : "SSH is enabled, but no login credential is currently available."}
+                    </p>
+                    <p>
+                      In VS Code Remote-SSH, add the config block first, then connect using the alias only.
                     </p>
                   </div>
                 </div>

@@ -1,5 +1,6 @@
 import type { PointerEvent as ReactPointerEvent } from "react"
 import { useEffect, useMemo, useRef, useState } from "react"
+import { IconChevronDown, IconChevronUp } from "@tabler/icons-react"
 import { FitAddon } from "@xterm/addon-fit"
 import { Terminal } from "@xterm/xterm"
 import "@xterm/xterm/css/xterm.css"
@@ -50,6 +51,7 @@ export function WorkerTerminalPanel({
   monitorPort,
 }: WorkerTerminalPanelProps) {
   const [activeTab, setActiveTab] = useState<TerminalTab>("terminal")
+  const [isCollapsed, setIsCollapsed] = useState(false)
   const [panelHeight, setPanelHeight] = useState(DEFAULT_PANEL_HEIGHT)
   const terminalHostRef = useRef<HTMLDivElement | null>(null)
   const panelHeightRef = useRef(DEFAULT_PANEL_HEIGHT)
@@ -67,6 +69,10 @@ export function WorkerTerminalPanel({
   }, [panelHeight])
 
   useEffect(() => {
+    if (isCollapsed) {
+      return
+    }
+
     const calculateNextHeight = (dragState: {
       startHeight: number
       startY: number
@@ -152,7 +158,7 @@ export function WorkerTerminalPanel({
       document.body.style.cursor = ""
       document.body.style.userSelect = ""
     }
-  }, [])
+  }, [isCollapsed])
 
   const handleResizeStart = (event: ReactPointerEvent<HTMLDivElement>) => {
     event.preventDefault()
@@ -168,7 +174,7 @@ export function WorkerTerminalPanel({
 
   useEffect(() => {
     const hostElement = terminalHostRef.current
-    if (!hostElement || !isReady || monitorPort <= 0) {
+    if (!hostElement || isCollapsed || !isReady || monitorPort <= 0) {
       return
     }
 
@@ -342,7 +348,7 @@ export function WorkerTerminalPanel({
       term.dispose()
       hostElement.replaceChildren()
     }
-  }, [isReady, monitorPort, panelCommand])
+  }, [isCollapsed, isReady, monitorPort, panelCommand])
 
   return (
     <>
@@ -352,19 +358,30 @@ export function WorkerTerminalPanel({
       />
       <section
         className="flex shrink-0 flex-col border-t border-gray-700 bg-[#1b1b1b]"
-        style={{ height: `${panelHeight}px` }}
+        style={{ height: isCollapsed ? undefined : `${panelHeight}px` }}
       >
-      <div
-        className="group flex h-3 shrink-0 cursor-row-resize items-center justify-center bg-[#181818]"
-        onPointerDown={handleResizeStart}
-        role="separator"
-        aria-label="Resize terminal panel"
-        aria-orientation="horizontal"
-      >
-        <div className="h-1 w-16 rounded-full bg-[#3a3a3a] transition group-hover:bg-[#5a5a5a]" />
-      </div>
+      {isCollapsed ? null : (
+        <div
+          className="group flex h-3 shrink-0 cursor-row-resize items-center justify-center bg-[#181818]"
+          onPointerDown={handleResizeStart}
+          role="separator"
+          aria-label="Resize terminal panel"
+          aria-orientation="horizontal"
+        >
+          <div className="h-1 w-16 rounded-full bg-[#3a3a3a] transition group-hover:bg-[#5a5a5a]" />
+        </div>
+      )}
 
       <div className="flex items-center gap-2 border-b border-gray-800 px-4 py-2">
+        <button
+          aria-expanded={!isCollapsed}
+          className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-gray-300 transition hover:bg-[#232323] hover:text-gray-100"
+          onClick={() => setIsCollapsed((current) => !current)}
+          type="button"
+        >
+          {isCollapsed ? <IconChevronUp size={16} /> : <IconChevronDown size={16} />}
+          <span>{isCollapsed ? "Show terminal" : "Hide terminal"}</span>
+        </button>
         {(Object.entries(TERMINAL_TAB_CONFIG) as Array<
           [TerminalTab, { label: string }]
         >).map(([tabKey, tab]) => {
@@ -387,7 +404,7 @@ export function WorkerTerminalPanel({
         })}
       </div>
 
-      {isReady && monitorPort > 0 ? (
+      {isCollapsed ? null : isReady && monitorPort > 0 ? (
         <div className="min-h-0 flex-1 p-2">
           <div
             className="h-full w-full overflow-hidden rounded-md border border-gray-800 bg-[#161616]"

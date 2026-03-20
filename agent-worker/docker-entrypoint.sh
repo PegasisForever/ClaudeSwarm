@@ -108,19 +108,30 @@ fi
 
 setup_vscode_remote_ssh_compat() {
   local ldconfig_bin=""
-  local gpp_bin=""
-  local gpp_root=""
+  local bash_bin=""
+  local library_probe_bin=""
+  local compiler_root=""
+  local candidate=""
+  local resolved_candidate=""
   local dynamic_linker_file=""
   local dynamic_linker=""
   local dynamic_linker_name=""
   local libstdcpp_path=""
   local libgcc_path=""
+  local fallback_path=""
   local library_path=""
   local managed_env_file="$HOME_DIR/.agentswarm-shell-env"
   local zshenv_file="$HOME_DIR/.zshenv"
   local vscode_env_dir="$HOME_DIR/.vscode-server"
   local vscode_env_file="$vscode_env_dir/server-env-setup"
   local source_line="[ -f \"$managed_env_file\" ] && . \"$managed_env_file\""
+
+  if command -v bash >/dev/null 2>&1; then
+    bash_bin="$(readlink -f "$(command -v bash)")"
+    mkdir -p /bin /usr/bin
+    ln -sf "$bash_bin" /bin/bash
+    ln -sf "$bash_bin" /usr/bin/bash
+  fi
 
   if command -v ldconfig >/dev/null 2>&1; then
     ldconfig_bin="$(readlink -f "$(command -v ldconfig)")"
@@ -129,17 +140,91 @@ setup_vscode_remote_ssh_compat() {
     ln -sf "$ldconfig_bin" /sbin/ldconfig
   fi
 
-  if command -v g++ >/dev/null 2>&1; then
-    gpp_bin="$(readlink -f "$(command -v g++)")"
-    gpp_root="${gpp_bin%/bin/g++}"
-    dynamic_linker_file="$gpp_root/nix-support/dynamic-linker"
-
-    if [ -f "$dynamic_linker_file" ]; then
-      dynamic_linker="$(cat "$dynamic_linker_file")"
+  for candidate in \
+    "${NIX_CC:-}" \
+    "$(command -v ld 2>/dev/null || true)" \
+    "$(command -v c++ 2>/dev/null || true)" \
+    "$(command -v g++ 2>/dev/null || true)" \
+    "$(command -v gcc 2>/dev/null || true)"
+  do
+    if [ -z "$candidate" ]; then
+      continue
     fi
 
-    libstdcpp_path="$(g++ -print-file-name=libstdc++.so.6 2>/dev/null || true)"
-    libgcc_path="$(g++ -print-file-name=libgcc_s.so.1 2>/dev/null || true)"
+    for resolved_candidate in \
+      "$candidate" \
+      "$(readlink -f "$candidate" 2>/dev/null || true)"
+    do
+      if [ -z "$resolved_candidate" ] || [ ! -e "$resolved_candidate" ]; then
+        continue
+      fi
+
+      compiler_root="${resolved_candidate%/bin/*}"
+
+      for dynamic_linker_file in \
+        "$compiler_root/nix-support/dynamic-linker" \
+        "$compiler_root/cc/nix-support/dynamic-linker" \
+        "$compiler_root"/lib*/gcc/*/*/../../../nix-support/dynamic-linker
+      do
+        if [ -f "$dynamic_linker_file" ]; then
+          dynamic_linker="$(cat "$dynamic_linker_file")"
+          break 3
+        fi
+      done
+    done
+  done
+
+  for library_probe_bin in \
+    "$(command -v c++ 2>/dev/null || true)" \
+    "$(command -v g++ 2>/dev/null || true)" \
+    "$(command -v gcc 2>/dev/null || true)"
+  do
+    if [ -z "$library_probe_bin" ]; then
+      continue
+    fi
+
+    libstdcpp_path="$("$library_probe_bin" -print-file-name=libstdc++.so.6 2>/dev/null || true)"
+    libgcc_path="$("$library_probe_bin" -print-file-name=libgcc_s.so.1 2>/dev/null || true)"
+
+    if [ -f "$libstdcpp_path" ] || [ -f "$libgcc_path" ]; then
+      break
+    fi
+  done
+
+  if [ -n "$libstdcpp_path" ] && [ ! -f "$libstdcpp_path" ]; then
+    libstdcpp_path=""
+  fi
+
+  if [ -n "$libgcc_path" ] && [ ! -f "$libgcc_path" ]; then
+    libgcc_path=""
+  fi
+
+  if [ -z "$libstdcpp_path" ]; then
+    for fallback_path in \
+      /nix/var/nix/profiles/agentswarm-worker/lib/libstdc++.so.6 \
+      /root/.nix-profile/lib/libstdc++.so.6 \
+      "$(find /nix/store -path '*/agentswarm-worker-env/lib/libstdc++.so.6' -print -quit 2>/dev/null || true)" \
+      "$(find /nix/store -path '*/lib/libstdc++.so.6' -print -quit 2>/dev/null || true)"
+    do
+      if [ -n "$fallback_path" ] && [ -f "$fallback_path" ]; then
+        libstdcpp_path="$fallback_path"
+        break
+      fi
+    done
+  fi
+
+  if [ -z "$libgcc_path" ]; then
+    for fallback_path in \
+      /nix/var/nix/profiles/agentswarm-worker/lib/libgcc_s.so.1 \
+      /root/.nix-profile/lib/libgcc_s.so.1 \
+      "$(find /nix/store -path '*/agentswarm-worker-env/lib/libgcc_s.so.1' -print -quit 2>/dev/null || true)" \
+      "$(find /nix/store -path '*/lib/libgcc_s.so.1' -print -quit 2>/dev/null || true)"
+    do
+      if [ -n "$fallback_path" ] && [ -f "$fallback_path" ]; then
+        libgcc_path="$fallback_path"
+        break
+      fi
+    done
   fi
 
   if [ -n "$dynamic_linker" ] && [ -f "$dynamic_linker" ]; then
@@ -200,6 +285,9 @@ setup_vscode_remote_ssh_compat() {
     printf '\n'
     printf '# Patch downloaded VS Code server binaries into the active Nix runtime.\n'
     printf 'if command -v patchelf >/dev/null 2>&1 && [ -n "${NIX_LD:-}" ] && [ -n "${NIX_LD_LIBRARY_PATH:-}" ]; then\n'
+    printf '  if [ -n "${ZSH_VERSION:-}" ]; then\n'
+    printf '    setopt local_options nonomatch 2>/dev/null || true\n'
+    printf '  fi\n'
     printf '  for node_path in "$HOME/.vscode-server/bin/"*/node "$HOME/.vscode-server/cli/servers/"*/server/node; do\n'
     printf '    [ -f "$node_path" ] || continue\n'
     printf '    current_interpreter="$(patchelf --print-interpreter "$node_path" 2>/dev/null || true)"\n'
@@ -282,6 +370,12 @@ setup_sshd() {
 
 setup_vscode_remote_ssh_compat
 setup_sshd
+
+if [ -f "$HOME_DIR/.agentswarm-shell-env" ]; then
+  # Make toolchain/runtime compatibility vars available to code-server and
+  # any terminals or subprocesses it launches, not just Remote-SSH sessions.
+  . "$HOME_DIR/.agentswarm-shell-env"
+fi
 
 cleanup() {
   if [ -n "$SSHD_PID" ] && kill -0 "$SSHD_PID" >/dev/null 2>&1; then
