@@ -126,7 +126,7 @@ export function WorkerWorkspace({
           >
             {worker.usesDefaultGithubAccount
               ? "GitHub: Default"
-              : `GitHub: ${worker.githubAccountName ?? worker.githubUsername ?? "Custom"}`}
+              : `GitHub: ${worker.githubAccountName || worker.githubUsername || "Custom"}`}
           </Button>
           <Button
             isLoading={isReplacing}

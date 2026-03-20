@@ -82,11 +82,14 @@ export function WorkerGithubModal({
                 }}
                 selectedKeys={[selection]}
               >
-                <SelectItem key="default">
+                <SelectItem key="default" textValue="Follow default">
                   Follow default
                 </SelectItem>
                 {settings.githubAccounts.map((account) => (
-                  <SelectItem key={account.id}>
+                  <SelectItem
+                    key={account.id}
+                    textValue={`${account.name} (@${account.username})`}
+                  >
                     {account.name} (@{account.username})
                   </SelectItem>
                 ))}

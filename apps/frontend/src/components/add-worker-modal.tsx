@@ -176,11 +176,14 @@ export function AddWorkerModal({
                 }}
                 selectedKeys={[githubAccountSelection]}
               >
-                <SelectItem key="default">
+                <SelectItem key="default" textValue="Follow default">
                   Follow default
                 </SelectItem>
                 {globalSettings.githubAccounts.map((account) => (
-                  <SelectItem key={account.id}>
+                  <SelectItem
+                    key={account.id}
+                    textValue={`${account.name} (@${account.username})`}
+                  >
                     {account.name} (@{account.username})
                   </SelectItem>
                 ))}
