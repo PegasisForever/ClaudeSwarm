@@ -16,8 +16,8 @@ SETPRIV_BIN="$(readlink -f "$(command -v setpriv)")"
 NIX_DAEMON_BIN="$(readlink -f "$(command -v nix-daemon)")"
 BUN_BIN="$(readlink -f "$(command -v bun)")"
 CHPASSWD_BIN="$(readlink -f "$(command -v chpasswd)")"
-DROPBEAR_BIN="$(readlink -f "$(command -v dropbear)")"
-DROPBEARKEY_BIN="$(readlink -f "$(command -v dropbearkey)")"
+SSHD_BIN="$(readlink -f "$(command -v sshd)")"
+SSH_KEYGEN_BIN="$(readlink -f "$(command -v ssh-keygen)")"
 MONITOR_SCRIPT="/usr/local/bin/monitor.js"
 BUN_PTY_LIB=""
 ARCH="$(uname -m)"
@@ -60,6 +60,20 @@ append_unique_path_dir() {
       fi
       ;;
   esac
+}
+
+ensure_standard_command_path() {
+  local command_name="$1"
+  local target_bin="$2"
+  local resolved_bin=""
+
+  if ! command -v "$command_name" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  resolved_bin="$(readlink -f "$(command -v "$command_name")")"
+  mkdir -p "$(dirname "$target_bin")"
+  ln -sf "$resolved_bin" "$target_bin"
 }
 
 cleanup_docker_runtime_state() {
@@ -109,6 +123,11 @@ fi
 setup_vscode_remote_ssh_compat() {
   local ldconfig_bin=""
   local bash_bin=""
+  local scp_bin=""
+  local sftp_bin=""
+  local ssh_bin=""
+  local openssh_root=""
+  local sftp_server_bin=""
   local library_probe_bin=""
   local compiler_root=""
   local candidate=""
@@ -126,11 +145,66 @@ setup_vscode_remote_ssh_compat() {
   local vscode_env_file="$vscode_env_dir/server-env-setup"
   local source_line="[ -f \"$managed_env_file\" ] && . \"$managed_env_file\""
 
+  ensure_standard_command_path sh /bin/sh
+  ensure_standard_command_path sh /usr/bin/sh
+  ensure_standard_command_path env /usr/bin/env
+  ensure_standard_command_path mkdir /bin/mkdir
+  ensure_standard_command_path mkdir /usr/bin/mkdir
+  ensure_standard_command_path mktemp /usr/bin/mktemp
+  ensure_standard_command_path chmod /bin/chmod
+  ensure_standard_command_path chmod /usr/bin/chmod
+  ensure_standard_command_path dirname /usr/bin/dirname
+  ensure_standard_command_path uname /bin/uname
+  ensure_standard_command_path uname /usr/bin/uname
+  ensure_standard_command_path date /bin/date
+  ensure_standard_command_path date /usr/bin/date
+  ensure_standard_command_path tar /bin/tar
+  ensure_standard_command_path tar /usr/bin/tar
+  ensure_standard_command_path gzip /bin/gzip
+  ensure_standard_command_path gzip /usr/bin/gzip
+  ensure_standard_command_path xz /bin/xz
+  ensure_standard_command_path xz /usr/bin/xz
+
   if command -v bash >/dev/null 2>&1; then
     bash_bin="$(readlink -f "$(command -v bash)")"
     mkdir -p /bin /usr/bin
     ln -sf "$bash_bin" /bin/bash
     ln -sf "$bash_bin" /usr/bin/bash
+  fi
+
+  if command -v ssh >/dev/null 2>&1; then
+    ssh_bin="$(readlink -f "$(command -v ssh)")"
+    mkdir -p /usr/bin /run/current-system/sw/bin
+    ln -sf "$ssh_bin" /usr/bin/ssh
+    ln -sf "$ssh_bin" /run/current-system/sw/bin/ssh
+    openssh_root="${ssh_bin%/bin/*}"
+
+    for sftp_server_bin in \
+      "$openssh_root/libexec/sftp-server" \
+      "$openssh_root/lib/openssh/sftp-server"
+    do
+      if [ -f "$sftp_server_bin" ]; then
+        mkdir -p /usr/libexec /usr/lib/openssh /run/current-system/sw/libexec
+        ln -sf "$sftp_server_bin" /usr/libexec/sftp-server
+        ln -sf "$sftp_server_bin" /usr/lib/openssh/sftp-server
+        ln -sf "$sftp_server_bin" /run/current-system/sw/libexec/sftp-server
+        break
+      fi
+    done
+  fi
+
+  if command -v scp >/dev/null 2>&1; then
+    scp_bin="$(readlink -f "$(command -v scp)")"
+    mkdir -p /usr/bin /run/current-system/sw/bin
+    ln -sf "$scp_bin" /usr/bin/scp
+    ln -sf "$scp_bin" /run/current-system/sw/bin/scp
+  fi
+
+  if command -v sftp >/dev/null 2>&1; then
+    sftp_bin="$(readlink -f "$(command -v sftp)")"
+    mkdir -p /usr/bin /run/current-system/sw/bin
+    ln -sf "$sftp_bin" /usr/bin/sftp
+    ln -sf "$sftp_bin" /run/current-system/sw/bin/sftp
   fi
 
   if command -v ldconfig >/dev/null 2>&1; then
@@ -309,7 +383,15 @@ setup_sshd() {
     return 0
   fi
 
-  mkdir -p /etc/dropbear /run
+  mkdir -p /etc/ssh /run /run/sshd /var/empty
+  chmod 755 /run /run/sshd /var/empty
+
+  if [ -L /etc/group ]; then
+    cp -L /etc/group /tmp/group
+    rm -f /etc/group
+    cp /tmp/group /etc/group
+    chmod 644 /etc/group
+  fi
 
   if [ -L /etc/passwd ]; then
     cp -L /etc/passwd /tmp/passwd
@@ -329,6 +411,14 @@ setup_sshd() {
   user_shell="$(grep '^kasm-user:' /etc/passwd | cut -d: -f7 || true)"
   touch /etc/shells
   chmod 644 /etc/shells
+
+  if ! grep -q '^sshd:' /etc/group; then
+    printf 'sshd:x:74:\n' >> /etc/group
+  fi
+
+  if ! grep -q '^sshd:' /etc/passwd; then
+    printf 'sshd:x:74:74:OpenSSH privilege separation:/var/empty:/bin/sh\n' >> /etc/passwd
+  fi
 
   if [ -n "$user_shell" ] && ! grep -Fxq "$user_shell" /etc/shells; then
     printf '%s\n' "$user_shell" >> /etc/shells
@@ -350,21 +440,40 @@ setup_sshd() {
     printf 'kasm-user:%s\n' "$WORKER_SSH_PASSWORD" | "$CHPASSWD_BIN" -c SHA512
   fi
 
-  if [ ! -f /etc/dropbear/dropbear_ed25519_host_key ]; then
-    "$DROPBEARKEY_BIN" -t ed25519 -f /etc/dropbear/dropbear_ed25519_host_key >/tmp/ssh-keygen.log 2>&1 || {
+  if [ ! -f /etc/ssh/ssh_host_ed25519_key ]; then
+    "$SSH_KEYGEN_BIN" -t ed25519 -N '' -f /etc/ssh/ssh_host_ed25519_key >/tmp/ssh-keygen.log 2>&1 || {
       cat /tmp/ssh-keygen.log >&2 || true
       return 1
     }
   fi
 
-  "$DROPBEAR_BIN" \
-    -F \
-    -E \
-    -w \
-    $([ -n "$WORKER_SSH_AUTHORIZED_KEYS" ] && printf '%s' '-s') \
-    -p "$SSH_PORT" \
-    -r /etc/dropbear/dropbear_ed25519_host_key \
-    >/tmp/sshd.log 2>&1 &
+  cat > /etc/ssh/sshd_config <<EOF
+Port $SSH_PORT
+ListenAddress 0.0.0.0
+Protocol 2
+HostKey /etc/ssh/ssh_host_ed25519_key
+PidFile /run/sshd.pid
+UsePAM no
+KbdInteractiveAuthentication no
+ChallengeResponseAuthentication no
+PubkeyAuthentication yes
+PasswordAuthentication $([ -n "$WORKER_SSH_PASSWORD" ] && printf '%s' 'yes' || printf '%s' 'no')
+AuthorizedKeysFile .ssh/authorized_keys
+PermitRootLogin no
+PermitEmptyPasswords no
+AllowUsers kasm-user
+PermitTTY yes
+X11Forwarding no
+AllowAgentForwarding yes
+AllowTcpForwarding yes
+AllowStreamLocalForwarding yes
+GatewayPorts no
+ClientAliveInterval 30
+Subsystem sftp /run/current-system/sw/libexec/sftp-server
+LogLevel VERBOSE
+EOF
+
+  "$SSHD_BIN" -D -e -f /etc/ssh/sshd_config >/tmp/sshd.log 2>&1 &
   SSHD_PID=$!
 }
 
