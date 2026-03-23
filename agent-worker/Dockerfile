@@ -1,3 +1,5 @@
+ARG CODEX_VERSION=0.115.0
+
 FROM oven/bun:1 AS monitor-builder
 
 WORKDIR /app
@@ -13,14 +15,22 @@ RUN bun build /app/apps/monitor/src/index.ts --outfile=/app/apps/monitor/dist/in
 RUN mkdir -p /app/apps/monitor/dist/native \
     && find /app/node_modules -path '*/bun-pty/rust-pty/target/release/librust_pty*.so' -exec cp {} /app/apps/monitor/dist/native/ \;
 
+FROM node:22-bookworm-slim AS codex-installer
+
+ARG CODEX_VERSION
+
+RUN npm install -g --unsafe-perm "@openai/codex@${CODEX_VERSION}"
+
 FROM nixos/nix:latest
+
+ARG CODEX_VERSION
 
 ENV HOME=/home/kasm-user
 ENV WORKER_PROFILE=/nix/var/nix/profiles/agentswarm-worker
 ENV SHELL=/nix/var/nix/profiles/agentswarm-worker/bin/zsh
 ENV NPM_CONFIG_PREFIX=/home/kasm-user/.local
 ENV PATH="/home/kasm-user/.local/bin:/nix/var/nix/profiles/agentswarm-worker/bin:/nix/var/nix/profiles/agentswarm-worker/sbin:$PATH"
-ENV CODEX_VERSION=0.115.0
+ENV CODEX_VERSION=$CODEX_VERSION
 
 RUN mkdir -p /etc/nix \
     && printf '%s\n' \
@@ -49,11 +59,6 @@ RUN printf '%s\n' \
 RUN mkdir -p /usr/local/bin \
     && ln -sf /root/.nix-profile/bin/nix-daemon /usr/local/bin/nix-daemon
 
-RUN mkdir -p "$NPM_CONFIG_PREFIX" \
-    && nix --extra-experimental-features "nix-command flakes" shell --accept-flake-config /tmp/agent-worker#nodejs --command \
-      npm install -g --unsafe-perm --prefix "$NPM_CONFIG_PREFIX" "@openai/codex@${CODEX_VERSION}" \
-    && rm -rf /tmp/agent-worker
-
 COPY --chown=1000:1000 agent-worker/dot_codex /home/kasm-user/.codex
 COPY --chown=1000:1000 agent-worker/dot_agent/skills /home/kasm-user/.codex/skills
 COPY --chown=1000:1000 agent-worker/code-server-settings.json /home/kasm-user/.local/share/code-server/User/settings.json
@@ -63,6 +68,8 @@ COPY --chown=1000:1000 agent-worker/zshrc /home/kasm-user/.zshrc
 COPY --chown=1000:1000 agent-worker/setup.sh /home/kasm-user/setup.sh
 COPY --chown=1000:1000 configure-github.sh /home/kasm-user/configure-github.sh
 COPY --chown=1000:1000 agent-worker/orchestrator.py /home/kasm-user/orchestrator.py
+COPY --from=codex-installer /usr/local/lib/node_modules /usr/local/lib/node_modules
+COPY --from=codex-installer /usr/local/bin/codex /usr/local/bin/codex
 COPY --from=monitor-builder /app/apps/monitor/dist/index.js /usr/local/bin/monitor.js
 COPY --from=monitor-builder /app/apps/monitor/dist/native /usr/local/lib/bun-pty
 COPY agent-worker/docker-entrypoint.sh /usr/local/bin/agent-worker-entrypoint
