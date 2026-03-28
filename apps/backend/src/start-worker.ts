@@ -34,6 +34,7 @@ type StartWorkerParams = {
   env: Record<string, string>
   enableSsh?: boolean
   enableComputerUse?: boolean
+  computerUseExtraFlakeRef?: string
   githubAccountId?: string
   cloneRepositoryUrl?: string
   labels?: Record<string, string>
@@ -153,6 +154,7 @@ export async function startWorkerContainer({
   env,
   enableSsh,
   enableComputerUse,
+  computerUseExtraFlakeRef,
   githubAccountId,
   cloneRepositoryUrl,
   labels,
@@ -204,6 +206,11 @@ export async function startWorkerContainer({
     ? {
         DISPLAY: ":1",
         WORKER_COMPUTER_USE_ENABLED: "1",
+        ...(computerUseExtraFlakeRef
+          ? {
+              WORKER_COMPUTER_USE_EXTRA_FLAKE_REF: computerUseExtraFlakeRef.trim(),
+            }
+          : {}),
         WORKER_VNC_PASSWORD:
           env.WORKER_VNC_PASSWORD?.trim() || createWorkerVncPassword(),
         WORKER_VNC_PORT: "6901",

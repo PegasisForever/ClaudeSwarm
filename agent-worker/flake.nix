@@ -35,10 +35,8 @@
             bun
             cacert
             code-server
-            chromium
             coreutils
             curl
-            dbus
             docker
             dropbear
             findutils
@@ -54,22 +52,30 @@
             nodejs_22
             ncurses
             openssh
-            openbox
             patchelf
             procps
             python3
-            python3Packages.websockify
-            jq
             ripgrep
-            scrot
             shadow
             stdenv.cc
             stdenv.cc.cc.lib
             tmux
             util-linux
-            novnc
-            wmctrl
             which
+            zsh
+          ];
+        };
+        computerUseEnv = pkgs.buildEnv {
+          name = "agentswarm-worker-computer-use-env";
+          paths = with pkgs; [
+            chromium
+            dbus
+            jq
+            novnc
+            openbox
+            python3Packages.websockify
+            scrot
+            wmctrl
             x11vnc
             xdotool
             xfce.thunar
@@ -85,7 +91,6 @@
             xorg.xset
             xorg.xsetroot
             xterm
-            zsh
           ];
         };
         nodejs = pkgs.nodejs_22;

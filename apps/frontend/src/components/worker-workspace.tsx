@@ -209,6 +209,11 @@ export function WorkerWorkspace({
     worker.vncPort,
     workerConnectionQuery.data?.vncPassword,
   )
+  const computerUseStatus = workerConnectionQuery.data?.computerUseStatus ??
+    worker.computerUseStatus
+  const computerUseReady = computerUseStatus === "ready"
+  const computerUsePreparing = computerUseStatus === "preparing"
+  const computerUseError = computerUseStatus === "error"
 
   const sshDetails = useMemo(() => {
     const connection = workerConnectionQuery.data as WorkerConnectionInfo | undefined
@@ -415,7 +420,7 @@ export function WorkerWorkspace({
             <Button
               as="a"
               href={desktopUrl}
-              isDisabled={!hasComputerUsePort || !isReady}
+              isDisabled={!hasComputerUsePort || !isReady || !computerUseReady}
               rel="noreferrer"
               size="sm"
               startContent={<IconExternalLink size={16} />}
@@ -521,12 +526,34 @@ export function WorkerWorkspace({
           {worker.computerUseEnabled ? (
             <div className="border-b border-gray-800 bg-[#1d1d1d] px-4 py-2 text-xs text-gray-300">
               <span className="font-medium text-gray-100">Computer use mode</span>
-              {workerConnectionQuery.data?.vncPassword ? (
+              <span className="ml-2 uppercase text-gray-400">{computerUseStatus}</span>
+              {computerUseReady && workerConnectionQuery.data?.vncPassword ? (
                 <span>{` · VNC password: ${workerConnectionQuery.data.vncPassword}`}</span>
               ) : null}
               <span className="ml-2 text-gray-400">
                 Desktop opens in a separate tab so the main workspace stays on code-server.
               </span>
+            </div>
+          ) : null}
+
+          {worker.computerUseEnabled && (computerUsePreparing || computerUseError) ? (
+            <div className="border-b border-gray-800 bg-[#191919] px-4 py-3">
+              <p className="text-sm font-medium text-gray-100">
+                {computerUsePreparing
+                  ? "Preparing computer-use environment"
+                  : "Computer-use environment failed"}
+              </p>
+              <p className="mt-1 text-xs text-gray-400">
+                {computerUsePreparing
+                  ? "Desktop packages are being provisioned from the configured flake outputs. code-server stays available while this finishes."
+                  : workerConnectionQuery.data?.computerUseError ??
+                    "Open desktop will remain unavailable until provisioning succeeds."}
+              </p>
+              {workerConnectionQuery.data?.computerUseLog ? (
+                <pre className="mt-3 max-h-48 overflow-auto rounded-md border border-gray-800 bg-[#111111] px-3 py-3 whitespace-pre-wrap break-all font-mono text-[11px] text-gray-200">
+                  {workerConnectionQuery.data.computerUseLog}
+                </pre>
+              ) : null}
             </div>
           ) : null}
 

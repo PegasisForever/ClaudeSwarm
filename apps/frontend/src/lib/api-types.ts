@@ -11,6 +11,7 @@ export type SshPublicKey = {
 }
 
 export type WorkerStatus = "ready" | "error" | "stopped"
+export type ComputerUseStatus = "disabled" | "preparing" | "ready" | "error"
 
 export type GlobalSettings = {
   autoPauseMinutes: number | null
@@ -35,6 +36,7 @@ export type WorkerInfo = {
   sshEnabled: boolean
   sshPort: number
   computerUseEnabled: boolean
+  computerUseStatus: ComputerUseStatus
   vncPort: number
   createdWithVersion: string
   currentAgentSwarmVersion: string
@@ -57,6 +59,9 @@ export type WorkerConnectionInfo = {
   sshPassword: string | null
   sshPort: number | null
   sshUser: string | null
+  computerUseError: string | null
+  computerUseLog: string | null
+  computerUseStatus: ComputerUseStatus
   vncPassword: string | null
   vncPort: number | null
   workspaceDir: string | null
@@ -69,6 +74,7 @@ export type WorkersResponse = {
 
 export type StartWorkerInput = {
   cloneRepositoryUrl?: string
+  computerUseExtraFlakeRef?: string
   env: Record<string, string>
   enableComputerUse?: boolean
   enableSsh?: boolean

@@ -38,6 +38,7 @@ export function AddWorkerModal({
   const [cloneRepositoryUrl, setCloneRepositoryUrl] = useState("")
   const [enableSsh, setEnableSsh] = useState(false)
   const [enableComputerUse, setEnableComputerUse] = useState(false)
+  const [computerUseExtraFlakeRef, setComputerUseExtraFlakeRef] = useState("")
   const [githubAccountSelection, setGithubAccountSelection] =
     useState<string>("default")
   const [envValues, setEnvValues] = useState<Record<string, string>>({})
@@ -84,6 +85,9 @@ export function AddWorkerModal({
       ),
       ...(enableSsh ? { enableSsh: true } : {}),
       ...(enableComputerUse ? { enableComputerUse: true } : {}),
+      ...(enableComputerUse && computerUseExtraFlakeRef.trim()
+        ? { computerUseExtraFlakeRef: computerUseExtraFlakeRef.trim() }
+        : {}),
       ...(githubAccountSelection !== "default"
         ? { githubAccountId: githubAccountSelection }
         : {}),
@@ -100,6 +104,7 @@ export function AddWorkerModal({
     envValues,
     enableSsh,
     enableComputerUse,
+    computerUseExtraFlakeRef,
     githubAccountSelection,
     cloneRepositoryUrl,
   ])
@@ -111,6 +116,7 @@ export function AddWorkerModal({
       setCloneRepositoryUrl("")
       setEnableSsh(false)
       setEnableComputerUse(false)
+      setComputerUseExtraFlakeRef("")
       setGithubAccountSelection("default")
       setEnvValues({})
       setShowLongLoadHint(false)
@@ -203,12 +209,22 @@ export function AddWorkerModal({
                       </Checkbox>
 
                       <Checkbox
-                        description="Adds a desktop session, browser, and computer-use tools. The main workspace still opens in code-server."
+                        description="Adds a desktop session, browser, and computer-use tools during startup. The main workspace still opens in code-server."
                         isSelected={enableComputerUse}
                         onValueChange={setEnableComputerUse}
                       >
                         Enable computer use mode
                       </Checkbox>
+
+                      {enableComputerUse ? (
+                        <Input
+                          description="Optional. Extra flake ref installed after the default computer-use environment, for example github:org/repo#desktopEnv."
+                          label="Extra computer-use flake"
+                          onValueChange={setComputerUseExtraFlakeRef}
+                          placeholder="github:org/repo#computerUseEnv"
+                          value={computerUseExtraFlakeRef}
+                        />
+                      ) : null}
 
                       <Select
                         description="Optional. Choose a saved GitHub account now, or keep following the global default."
@@ -283,6 +299,14 @@ export function AddWorkerModal({
                         code-server
                         {enableComputerUse ? " + desktop" : ""}
                       </p>
+                      {enableComputerUse ? (
+                        <p>
+                          <span className="text-default-400">Desktop env:</span>{" "}
+                          {computerUseExtraFlakeRef.trim()
+                            ? `default + ${computerUseExtraFlakeRef.trim()}`
+                            : "default flake"}
+                        </p>
+                      ) : null}
                       <p>
                         <span className="text-default-400">SSH:</span>{" "}
                         {enableSsh ? "enabled" : "disabled"}
@@ -335,6 +359,9 @@ export function AddWorkerModal({
 
                     startWorker.mutate({
                       ...(enableComputerUse ? { enableComputerUse: true } : {}),
+                      ...(enableComputerUse && computerUseExtraFlakeRef.trim()
+                        ? { computerUseExtraFlakeRef: computerUseExtraFlakeRef.trim() }
+                        : {}),
                       ...(enableSsh ? { enableSsh: true } : {}),
                       ...(githubAccountSelection !== "default"
                         ? { githubAccountId: githubAccountSelection }

@@ -50,6 +50,7 @@ function sanitizeReplacementEnv(env: Record<string, string>) {
     "WORKER_SSH_PASSWORD",
     "WORKER_SSH_PRIVATE_KEY",
     "WORKER_COMPUTER_USE_ENABLED",
+    "WORKER_COMPUTER_USE_EXTRA_FLAKE_REF",
     "WORKER_VNC_PASSWORD",
     "WORKER_VNC_PORT",
     "WORKER_VNC_RESOLUTION",

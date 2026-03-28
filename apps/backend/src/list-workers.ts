@@ -14,6 +14,7 @@ import {
   WORKER_VNC_PORT,
 } from "./worker-container"
 import { getEffectiveGithubAccountForWorker } from "./secrets"
+import { readComputerUseState, type ComputerUseStatus } from "./computer-use"
 
 const WORKERS_CACHE_TTL_MS = 900
 
@@ -27,6 +28,7 @@ export type WorkerInfo = {
   sshEnabled: boolean
   sshPort: number
   computerUseEnabled: boolean
+  computerUseStatus: ComputerUseStatus
   vncPort: number
   createdWithVersion: string
   currentAgentSwarmVersion: string
@@ -139,6 +141,11 @@ async function loadWorkers(): Promise<WorkersResult> {
       const vncPort = readPublishedPort(inspection, WORKER_VNC_PORT)
       const sshEnabled = env.WORKER_SSH_ENABLED === "1"
       const computerUseEnabled = env.WORKER_COMPUTER_USE_ENABLED === "1"
+      const computerUseState = await readComputerUseState({
+        computerUseEnabled,
+        containerId: container.Id,
+        running: inspection.State.Running,
+      })
       const monitorStatus = getContainerMonitorStatus(inspection)
       const githubAccount = getEffectiveGithubAccountForWorker(container.Id)
 
@@ -165,6 +172,7 @@ async function loadWorkers(): Promise<WorkersResult> {
           sshEnabled,
           sshPort: sshPort ?? 0,
           computerUseEnabled,
+          computerUseStatus: computerUseState.status,
           vncPort: vncPort ?? 0,
           createdWithVersion:
             inspection.Config.Labels?.[WORKER_CREATED_WITH_VERSION_LABEL] ??
