@@ -18,7 +18,7 @@ WORKER_VNC_PORT="${WORKER_VNC_PORT:-6901}"
 WORKER_VNC_RESOLUTION="${WORKER_VNC_RESOLUTION:-1440x900x24}"
 BASH_BIN="$(readlink -f "$(command -v bash)")"
 SETPRIV_BIN="$(readlink -f "$(command -v setpriv)")"
-NIX_DAEMON_BIN="$(readlink -f "$(command -v nix-daemon)")"
+NIX_BIN="$(readlink -f "$(command -v nix)")"
 BUN_BIN="$(readlink -f "$(command -v bun)")"
 CHPASSWD_BIN="$(readlink -f "$(command -v chpasswd)")"
 SSHD_BIN="$(readlink -f "$(command -v sshd)")"
@@ -39,7 +39,7 @@ fi
 mkdir -p /var/run /var/lib/docker
 chown -R 1000:1000 "$HOME_DIR"
 
-"$NIX_DAEMON_BIN" >/tmp/nix-daemon.log 2>&1 &
+"$NIX_BIN" daemon >/tmp/nix-daemon.log 2>&1 &
 NIX_DAEMON_PID=$!
 
 DOCKERD_PID=""
@@ -524,6 +524,18 @@ if ! docker info >/dev/null 2>&1; then
   exit 1
 fi
 
+if [ "$WORKER_COMPUTER_USE_ENABLED" = "1" ]; then
+  HOME=/root \
+  WORKER_HOME_DIR="$HOME_DIR" \
+  WORKSPACE_DIR="$WORKSPACE_DIR" \
+  WORKER_COMPUTER_USE_ENABLED="$WORKER_COMPUTER_USE_ENABLED" \
+  WORKER_COMPUTER_USE_EXTRA_FLAKE_REF="$WORKER_COMPUTER_USE_EXTRA_FLAKE_REF" \
+  WORKER_VNC_PASSWORD="$WORKER_VNC_PASSWORD" \
+  WORKER_VNC_PORT="$WORKER_VNC_PORT" \
+  WORKER_VNC_RESOLUTION="$WORKER_VNC_RESOLUTION" \
+  "$COMPUTER_USE_SCRIPT" >/tmp/computer-use.log 2>&1 &
+fi
+
 exec "$SETPRIV_BIN" \
   --reuid=1000 \
   --regid=1000 \
@@ -712,10 +724,6 @@ EOF
     fi
 
     configure_github_auth
-
-    if [ "$WORKER_COMPUTER_USE_ENABLED" = "1" ]; then
-      "$COMPUTER_USE_SCRIPT" >/tmp/computer-use.log 2>&1 &
-    fi
 
     "$BUN_BIN" "$MONITOR_SCRIPT" >/tmp/monitor.log 2>&1 &
 

@@ -2,17 +2,21 @@
 
 set -euo pipefail
 
-HOME_DIR="${HOME:-/home/kasm-user}"
-WORKSPACE_DIR="${WORKSPACE_DIR:-$HOME_DIR/workers}"
+WORKER_HOME_DIR="${WORKER_HOME_DIR:-${HOME:-/home/kasm-user}}"
+WORKSPACE_DIR="${WORKSPACE_DIR:-$WORKER_HOME_DIR/workers}"
 DISPLAY_VALUE="${DISPLAY:-:1}"
-COMPUTER_USE_STATE_DIR="$HOME_DIR/.agentswarm/computer-use"
-COMPUTER_USE_PROFILE="$HOME_DIR/.agentswarm/profiles/computer-use"
+COMPUTER_USE_STATE_DIR="$WORKER_HOME_DIR/.agentswarm/computer-use"
+COMPUTER_USE_PROFILE="$WORKER_HOME_DIR/.agentswarm/profiles/computer-use"
 COMPUTER_USE_STAMP_FILE="$COMPUTER_USE_STATE_DIR/flake-ref"
 DEFAULT_COMPUTER_USE_FLAKE="${WORKER_COMPUTER_USE_FLAKE:-/opt/agent-worker-flake#computerUseEnv}"
 EXTRA_COMPUTER_USE_FLAKE="${WORKER_COMPUTER_USE_EXTRA_FLAKE_REF:-}"
 LOG_FILE="$COMPUTER_USE_STATE_DIR/provision.log"
 ERROR_FILE="$COMPUTER_USE_STATE_DIR/error"
 STATUS_FILE="$COMPUTER_USE_STATE_DIR/status"
+WORKER_USER="${WORKER_USER:-kasm-user}"
+WORKER_UID="${WORKER_UID:-1000}"
+WORKER_GID="${WORKER_GID:-1000}"
+SETPRIV_BIN="${SETPRIV_BIN:-$(command -v setpriv || true)}"
 VNC_PORT="${WORKER_VNC_PORT:-6901}"
 VNC_PASSWORD="${WORKER_VNC_PASSWORD:-computer-use}"
 VNC_SCREEN="${WORKER_VNC_RESOLUTION:-1440x900x24}"
@@ -46,13 +50,78 @@ fail() {
   exit 1
 }
 
+run_as_worker_background() {
+  local command_text="$1"
+  local log_file="$2"
+
+  if [ "$(id -u)" -eq "$WORKER_UID" ]; then
+    env \
+      HOME="$WORKER_HOME_DIR" \
+      USER="$WORKER_USER" \
+      WORKSPACE_DIR="$WORKSPACE_DIR" \
+      DISPLAY="$DISPLAY_VALUE" \
+      PATH="$PATH" \
+      bash -lc "$command_text" \
+      >"$log_file" 2>&1 &
+    return 0
+  fi
+
+  if [ -z "$SETPRIV_BIN" ]; then
+    fail "setpriv is required to launch the desktop as ${WORKER_USER}"
+  fi
+
+  "$SETPRIV_BIN" \
+    --reuid="$WORKER_UID" \
+    --regid="$WORKER_GID" \
+    --init-groups \
+    env \
+    HOME="$WORKER_HOME_DIR" \
+    USER="$WORKER_USER" \
+    WORKSPACE_DIR="$WORKSPACE_DIR" \
+    DISPLAY="$DISPLAY_VALUE" \
+    PATH="$PATH" \
+    bash -lc "$command_text" \
+    >"$log_file" 2>&1 &
+}
+
+run_as_worker() {
+  local command_text="$1"
+
+  if [ "$(id -u)" -eq "$WORKER_UID" ]; then
+    env \
+      HOME="$WORKER_HOME_DIR" \
+      USER="$WORKER_USER" \
+      WORKSPACE_DIR="$WORKSPACE_DIR" \
+      DISPLAY="$DISPLAY_VALUE" \
+      PATH="$PATH" \
+      bash -lc "$command_text"
+    return 0
+  fi
+
+  if [ -z "$SETPRIV_BIN" ]; then
+    fail "setpriv is required to launch the desktop as ${WORKER_USER}"
+  fi
+
+  "$SETPRIV_BIN" \
+    --reuid="$WORKER_UID" \
+    --regid="$WORKER_GID" \
+    --init-groups \
+    env \
+    HOME="$WORKER_HOME_DIR" \
+    USER="$WORKER_USER" \
+    WORKSPACE_DIR="$WORKSPACE_DIR" \
+    DISPLAY="$DISPLAY_VALUE" \
+    PATH="$PATH" \
+    bash -lc "$command_text"
+}
+
 find_novnc_web_root() {
   local candidate=""
 
   for candidate in \
     "${NOVNC_WEB_ROOT:-}" \
-    "$COMPUTER_USE_PROFILE/share/novnc" \
-    "$COMPUTER_USE_PROFILE/share/webapps/novnc" \
+      "$COMPUTER_USE_PROFILE/share/novnc" \
+      "$COMPUTER_USE_PROFILE/share/webapps/novnc" \
     /opt/novnc \
     /usr/share/novnc \
     /usr/share/webapps/novnc \
@@ -90,41 +159,44 @@ launch_terminal() {
   local title="$1"
   local session_name="$2"
 
-  if command -v xfce4-terminal >/dev/null 2>&1; then
-    xfce4-terminal \
-      --title="$title" \
-      --working-directory="$WORKSPACE_DIR" \
-      --command="sh -lc 'mkdir -p \"$WORKSPACE_DIR\"; exec tmux new-session -A -s \"$session_name\" -c \"$WORKSPACE_DIR\"'" \
-      >/tmp/"$session_name"-terminal.log 2>&1 &
-    return 0
-  fi
+  run_as_worker_background "
+    if command -v xfce4-terminal >/dev/null 2>&1; then
+      exec xfce4-terminal \
+        --title='$title' \
+        --working-directory='$WORKSPACE_DIR' \
+        --command=\"sh -lc 'mkdir -p \\\"$WORKSPACE_DIR\\\"; exec tmux new-session -A -s \\\"$session_name\\\" -c \\\"$WORKSPACE_DIR\\\"'\"
+    fi
 
-  xterm \
-    -title "$title" \
-    -fa Monospace \
-    -fs 11 \
-    -e sh -lc "mkdir -p \"$WORKSPACE_DIR\"; exec tmux new-session -A -s \"$session_name\" -c \"$WORKSPACE_DIR\"" \
-    >/tmp/"$session_name"-terminal.log 2>&1 &
+    exec xterm \
+      -title '$title' \
+      -fa Monospace \
+      -fs 11 \
+      -e \"sh -lc 'mkdir -p \\\"$WORKSPACE_DIR\\\"; exec tmux new-session -A -s \\\"$session_name\\\" -c \\\"$WORKSPACE_DIR\\\"'\"
+  " "/tmp/${session_name}-terminal.log"
 }
 
 launch_browser() {
-  if command -v chromium >/dev/null 2>&1; then
-    chromium --no-sandbox --disable-dev-shm-usage about:blank >/tmp/browser.log 2>&1 &
-    return 0
-  fi
+  run_as_worker_background "
+    if command -v chromium >/dev/null 2>&1; then
+      exec chromium --no-sandbox --disable-dev-shm-usage about:blank
+    fi
 
-  if command -v firefox >/dev/null 2>&1; then
-    firefox about:blank >/tmp/browser.log 2>&1 &
-  fi
+    if command -v firefox >/dev/null 2>&1; then
+      exec firefox about:blank
+    fi
+
+    exit 0
+  " /tmp/browser.log
 }
 
 start_desktop_session() {
-  if command -v startxfce4 >/dev/null 2>&1; then
-    startxfce4 >/tmp/desktop-session.log 2>&1 &
-    return 0
-  fi
+  run_as_worker_background "
+    if command -v startxfce4 >/dev/null 2>&1; then
+      exec startxfce4
+    fi
 
-  openbox-session >/tmp/desktop-session.log 2>&1 &
+    exec openbox-session
+  " /tmp/desktop-session.log
 }
 
 activate_computer_use_profile() {
@@ -150,6 +222,9 @@ prepare_flake_environment() {
   rm -rf "$COMPUTER_USE_PROFILE"
   mkdir -p "$(dirname "$COMPUTER_USE_PROFILE")"
 
+  export NIX_CONFIG="$(printf '%s\n%s\n' "${NIX_CONFIG:-}" 'filter-syscalls = false')"
+  unset NIX_REMOTE
+
   echo "Installing default computer-use environment from ${DEFAULT_COMPUTER_USE_FLAKE}"
   nix profile install \
     --accept-flake-config \
@@ -165,6 +240,8 @@ prepare_flake_environment() {
   fi
 
   printf '%s\n' "$requested_stamp" > "$COMPUTER_USE_STAMP_FILE"
+  chown -R "$WORKER_UID:$WORKER_GID" "$COMPUTER_USE_STATE_DIR" "$(dirname "$COMPUTER_USE_PROFILE")"
+  chown -h "$WORKER_UID:$WORKER_GID" "$COMPUTER_USE_PROFILE" 2>/dev/null || true
   activate_computer_use_profile
 }
 
@@ -187,33 +264,37 @@ if [ -z "$NOVNC_WEB_ROOT" ]; then
   fail "Could not locate noVNC web assets after provisioning"
 fi
 
-mkdir -p "$HOME_DIR/.vnc" "$HOME_DIR/.config/openbox" "$HOME_DIR/Desktop" "$HOME_DIR/Downloads"
+mkdir -p "$WORKER_HOME_DIR/.vnc" "$WORKER_HOME_DIR/.config/openbox" "$WORKER_HOME_DIR/Desktop" "$WORKER_HOME_DIR/Downloads"
+chown -R "$WORKER_UID:$WORKER_GID" "$WORKER_HOME_DIR/.vnc" "$WORKER_HOME_DIR/.config" "$WORKER_HOME_DIR/Desktop" "$WORKER_HOME_DIR/Downloads"
 
-Xvfb "$DISPLAY_VALUE" -screen 0 "$VNC_SCREEN" -ac +extension RANDR >/tmp/xvfb.log 2>&1 &
+run_as_worker_background "exec Xvfb '$DISPLAY_VALUE' -screen 0 '$VNC_SCREEN' -ac +extension RANDR" /tmp/xvfb.log
 
 wait_for_x_display
 
 export DISPLAY="$DISPLAY_VALUE"
 
 start_desktop_session
-xsetroot -solid "#1f1f1f" >/dev/null 2>&1 || true
+run_as_worker "xsetroot -solid '#1f1f1f' >/dev/null 2>&1 || true"
 
 launch_terminal "codex" "codex"
 launch_terminal "terminal" "terminal"
 launch_browser
 
-x11vnc -storepasswd "$VNC_PASSWORD" "$HOME_DIR/.vnc/passwd" >/dev/null
-x11vnc \
-  -display "$DISPLAY_VALUE" \
-  -rfbport "$X11VNC_PORT" \
-  -rfbauth "$HOME_DIR/.vnc/passwd" \
-  -forever \
-  -shared \
-  -xkb \
-  -noxdamage \
-  >/tmp/x11vnc.log 2>&1 &
+run_as_worker "x11vnc -storepasswd '$VNC_PASSWORD' '$WORKER_HOME_DIR/.vnc/passwd' >/dev/null"
+run_as_worker_background "
+  exec x11vnc \
+    -display '$DISPLAY_VALUE' \
+    -rfbport '$X11VNC_PORT' \
+    -rfbauth '$WORKER_HOME_DIR/.vnc/passwd' \
+    -forever \
+    -shared \
+    -xkb \
+    -noxdamage
+" /tmp/x11vnc.log
 
-websockify --web "$NOVNC_WEB_ROOT" "$VNC_PORT" "127.0.0.1:${X11VNC_PORT}" >/tmp/novnc.log 2>&1 &
+run_as_worker_background "
+  exec websockify --web '$NOVNC_WEB_ROOT' '$VNC_PORT' '127.0.0.1:$X11VNC_PORT'
+" /tmp/novnc.log
 
 clear_error
 set_status "ready"

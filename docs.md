@@ -30,6 +30,8 @@
 
 The dashboard embeds each worker's `code-server` instance directly.
 
+Computer-use workers keep `code-server` in the main pane and expose desktop access through `Open desktop` once provisioning finishes.
+
 ### VS Code Remote-SSH
 
 Each new worker publishes an SSH endpoint. In the worker view, AgentSwarm shows:
@@ -94,6 +96,15 @@ The worker image is Nix-based:
 
 - toolchain definition: [`agent-worker/flake.nix`](./agent-worker/flake.nix)
 - pinned inputs: [`agent-worker/flake.lock`](./agent-worker/flake.lock)
+
+### Extra Computer-Use Flake
+
+Computer-use mode installs a default desktop/tooling flake during worker startup. You can optionally layer an extra flake ref on top.
+
+If you do not want to maintain your own flake yet, use the sample in this repo:
+
+- example ref: `github:zangjiucheng/AgentSwarm?dir=examples/computer-use-extra#computerUseEnv`
+- sample files: [`examples/computer-use-extra/flake.nix`](./examples/computer-use-extra/flake.nix) and [`examples/computer-use-extra/README.md`](./examples/computer-use-extra/README.md)
 
 ## Notes
 

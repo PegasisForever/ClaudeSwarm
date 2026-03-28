@@ -218,10 +218,10 @@ export function AddWorkerModal({
 
                       {enableComputerUse ? (
                         <Input
-                          description="Optional. Extra flake ref installed after the default computer-use environment, for example github:org/repo#desktopEnv."
+                          description="Optional. Extra flake ref installed after the default computer-use environment. Example: github:zangjiucheng/AgentSwarm?dir=examples/computer-use-extra#computerUseEnv"
                           label="Extra computer-use flake"
                           onValueChange={setComputerUseExtraFlakeRef}
-                          placeholder="github:org/repo#computerUseEnv"
+                          placeholder="github:zangjiucheng/AgentSwarm?dir=examples/computer-use-extra#computerUseEnv"
                           value={computerUseExtraFlakeRef}
                         />
                       ) : null}
