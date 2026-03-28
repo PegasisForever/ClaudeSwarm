@@ -66,6 +66,10 @@ export function AddWorkerModal({
 
   const missingRequiredField =
     title.trim().length === 0 || selectedPreset == null
+  const selectedGithubAccount =
+    githubAccountSelection === "default"
+      ? null
+      : globalSettings.githubAccounts.find((account) => account.id === githubAccountSelection) ?? null
 
   const errorMessage = startWorker.error?.message
 
@@ -122,134 +126,197 @@ export function AddWorkerModal({
       isOpen={isOpen}
       onOpenChange={handleOpenChange}
       placement="top-center"
-      size="xl"
+      size="2xl"
     >
-      <ModalContent>
+      <ModalContent className="max-h-[88vh] overflow-hidden">
         {(close) => (
           <>
-            <ModalHeader>New Worker</ModalHeader>
-            <ModalBody className="gap-5">
-              <Input
-                autoFocus
-                isRequired
-                label="Title"
-                onValueChange={setTitle}
-                value={title}
-              />
-              <Select
-                isRequired
-                label="Preset"
-                onSelectionChange={(keys) => {
-                  const nextKey =
-                    keys === "all"
-                      ? undefined
-                      : (Array.from(keys)[0] as Key | undefined)
-
-                  if (typeof nextKey === "string") {
-                    setPresetName(nextKey)
-                  }
-                }}
-                selectedKeys={effectivePresetName ? [effectivePresetName] : []}
-              >
-                {presets.map((preset) => (
-                  <SelectItem key={preset.name}>{preset.name}</SelectItem>
-                ))}
-              </Select>
-
-              {presets.length === 0 ? (
-                <p className="text-default-400 text-sm">
-                  No presets are currently available from the backend.
-                </p>
-              ) : null}
-
-              <Input
-                description="Optional. The worker will clone this repo and open code-server in the cloned directory."
-                label="Repository URL"
-                onValueChange={setCloneRepositoryUrl}
-                placeholder="https://github.com/org/repo.git or git@github.com:org/repo.git"
-                value={cloneRepositoryUrl}
-              />
-
-              <Checkbox
-                isSelected={enableSsh}
-                onValueChange={setEnableSsh}
-              >
-                Enable SSH for VS Code Remote-SSH
-              </Checkbox>
-
-              <Checkbox
-                description="Starts a lightweight desktop inside the worker and exposes a browser VNC session for real-time interaction."
-                isSelected={enableComputerUse}
-                onValueChange={setEnableComputerUse}
-              >
-                Enable computer use mode
-              </Checkbox>
-
-              <Select
-                description="Optional. Choose a saved GitHub account now, or let this worker follow the current default account."
-                label="GitHub Account"
-                onSelectionChange={(keys) => {
-                  const nextKey =
-                    keys === "all"
-                      ? undefined
-                      : (Array.from(keys)[0] as Key | undefined)
-
-                  if (typeof nextKey === "string") {
-                    setGithubAccountSelection(nextKey)
-                  }
-                }}
-                selectedKeys={[githubAccountSelection]}
-              >
-                <SelectItem key="default" textValue="Follow default">
-                  Follow default
-                </SelectItem>
-                {globalSettings.githubAccounts.map((account) => (
-                  <SelectItem
-                    key={account.id}
-                    textValue={`${account.name} (@${account.username})`}
-                  >
-                    {account.name} (@{account.username})
-                  </SelectItem>
-                ))}
-              </Select>
-
-              {selectedPreset ? (
-                <div className="grid grid-cols-[auto_1fr] items-start gap-x-4 gap-y-4">
-                  {selectedPreset.requiredEnv.map((envKey) => (
-                    <Fragment key={envKey}>
-                      <label className="text-foreground self-center font-mono text-sm">
-                        {envKey}
-                      </label>
-                      <Textarea
-                        onValueChange={(value) =>
-                          setEnvValues((currentValues) => ({
-                            ...currentValues,
-                            [envKey]: value,
-                          }))
-                        }
-                        value={envValues[envKey] ?? ""}
-                        minRows={1}
+            <ModalHeader className="flex-col items-start gap-1">
+              <span>New Worker</span>
+              <span className="text-default-500 text-xs font-normal">
+                Default workspace stays on code-server. Computer use mode adds a separate desktop window.
+              </span>
+            </ModalHeader>
+            <ModalBody className="min-h-0 gap-5 overflow-y-auto">
+              <div className="grid gap-5 lg:grid-cols-[minmax(0,1.3fr)_minmax(20rem,0.9fr)]">
+                <div className="space-y-5">
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <p className="text-xs font-semibold tracking-[0.2em] uppercase text-default-400">
+                      Basics
+                    </p>
+                    <div className="mt-4 space-y-4">
+                      <Input
+                        autoFocus
+                        isRequired
+                        label="Title"
+                        onValueChange={setTitle}
+                        placeholder="UI bug triage, OSS contribution, agent task..."
+                        value={title}
                       />
-                    </Fragment>
-                  ))}
+                      <Select
+                        isRequired
+                        label="Preset"
+                        onSelectionChange={(keys) => {
+                          const nextKey =
+                            keys === "all"
+                              ? undefined
+                              : (Array.from(keys)[0] as Key | undefined)
+
+                          if (typeof nextKey === "string") {
+                            setPresetName(nextKey)
+                          }
+                        }}
+                        selectedKeys={effectivePresetName ? [effectivePresetName] : []}
+                      >
+                        {presets.map((preset) => (
+                          <SelectItem key={preset.name}>{preset.name}</SelectItem>
+                        ))}
+                      </Select>
+
+                      {presets.length === 0 ? (
+                        <p className="text-default-400 text-sm">
+                          No presets are currently available from the backend.
+                        </p>
+                      ) : null}
+
+                      <Input
+                        description="Optional. Clone a repository and open the worker in that workspace."
+                        label="Repository URL"
+                        onValueChange={setCloneRepositoryUrl}
+                        placeholder="https://github.com/org/repo.git or git@github.com:org/repo.git"
+                        value={cloneRepositoryUrl}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <p className="text-xs font-semibold tracking-[0.2em] uppercase text-default-400">
+                      Access
+                    </p>
+                    <div className="mt-4 space-y-4">
+                      <Checkbox
+                        description="Expose SSH credentials for VS Code Remote-SSH."
+                        isSelected={enableSsh}
+                        onValueChange={setEnableSsh}
+                      >
+                        Enable SSH
+                      </Checkbox>
+
+                      <Checkbox
+                        description="Adds a desktop session, browser, and computer-use tools. The main workspace still opens in code-server."
+                        isSelected={enableComputerUse}
+                        onValueChange={setEnableComputerUse}
+                      >
+                        Enable computer use mode
+                      </Checkbox>
+
+                      <Select
+                        description="Optional. Choose a saved GitHub account now, or keep following the global default."
+                        label="GitHub Account"
+                        onSelectionChange={(keys) => {
+                          const nextKey =
+                            keys === "all"
+                              ? undefined
+                              : (Array.from(keys)[0] as Key | undefined)
+
+                          if (typeof nextKey === "string") {
+                            setGithubAccountSelection(nextKey)
+                          }
+                        }}
+                        selectedKeys={[githubAccountSelection]}
+                      >
+                        <SelectItem key="default" textValue="Follow default">
+                          Follow default
+                        </SelectItem>
+                        {globalSettings.githubAccounts.map((account) => (
+                          <SelectItem
+                            key={account.id}
+                            textValue={`${account.name} (@${account.username})`}
+                          >
+                            {account.name} (@{account.username})
+                          </SelectItem>
+                        ))}
+                      </Select>
+                    </div>
+                  </div>
+
+                  {selectedPreset ? (
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                      <p className="text-xs font-semibold tracking-[0.2em] uppercase text-default-400">
+                        Required Environment
+                      </p>
+                      <div className="mt-4 grid grid-cols-[auto_1fr] items-start gap-x-4 gap-y-4">
+                        {selectedPreset.requiredEnv.map((envKey) => (
+                          <Fragment key={envKey}>
+                            <label className="text-foreground self-center font-mono text-sm">
+                              {envKey}
+                            </label>
+                            <Textarea
+                              onValueChange={(value) =>
+                                setEnvValues((currentValues) => ({
+                                  ...currentValues,
+                                  [envKey]: value,
+                                }))
+                              }
+                              value={envValues[envKey] ?? ""}
+                              minRows={1}
+                            />
+                          </Fragment>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
-              ) : null}
+
+                <div className="space-y-5">
+                  <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/8 p-4">
+                    <p className="text-xs font-semibold tracking-[0.2em] uppercase text-emerald-300">
+                      Launch Summary
+                    </p>
+                    <div className="mt-4 space-y-3 text-sm text-default-200">
+                      <p>
+                        <span className="text-default-400">Preset:</span>{" "}
+                        {selectedPreset?.name ?? "Not selected"}
+                      </p>
+                      <p>
+                        <span className="text-default-400">Workspace:</span>{" "}
+                        code-server
+                        {enableComputerUse ? " + desktop" : ""}
+                      </p>
+                      <p>
+                        <span className="text-default-400">SSH:</span>{" "}
+                        {enableSsh ? "enabled" : "disabled"}
+                      </p>
+                      <p>
+                        <span className="text-default-400">GitHub:</span>{" "}
+                        {selectedGithubAccount
+                          ? `${selectedGithubAccount.name} (@${selectedGithubAccount.username})`
+                          : "follow default"}
+                      </p>
+                      <p>
+                        <span className="text-default-400">Repository:</span>{" "}
+                        {cloneRepositoryUrl.trim() || "empty workspace"}
+                      </p>
+                    </div>
+                  </div>
+
+                  {curlCommand ? (
+                    <Snippet
+                      classNames={{
+                        base: "bg-default-100 items-start",
+                        pre: "whitespace-pre-wrap break-all font-mono text-xs",
+                      }}
+                      symbol=""
+                      variant="flat"
+                    >
+                      {curlCommand}
+                    </Snippet>
+                  ) : null}
+                </div>
+              </div>
 
               {errorMessage ? (
                 <p className="text-danger text-sm">{errorMessage}</p>
-              ) : null}
-
-              {curlCommand ? (
-                <Snippet
-                  classNames={{
-                    base: "bg-default-100 items-start",
-                    pre: "whitespace-pre-wrap break-all font-mono text-xs",
-                  }}
-                  symbol=""
-                  variant="flat"
-                >
-                  {curlCommand}
-                </Snippet>
               ) : null}
             </ModalBody>
             <ModalFooter className="flex-col items-stretch gap-2 pt-3">

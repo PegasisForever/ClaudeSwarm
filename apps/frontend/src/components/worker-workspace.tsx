@@ -254,11 +254,8 @@ export function WorkerWorkspace({
     }
   }, [worker.id, workerConnectionQuery.data])
 
-  const workspaceUrl =
-    worker.computerUseEnabled && hasComputerUsePort ? computerUseUrl : workerUrl
-  const workspaceTitle = worker.computerUseEnabled
-    ? `${worker.title} computer use desktop`
-    : `${worker.title} code-server`
+  const desktopUrl = computerUseUrl
+  const workspaceTitle = `${worker.title} code-server`
 
   const handleDestroy = async () => {
     setIsDestroying(true)
@@ -404,18 +401,30 @@ export function WorkerWorkspace({
           </Button>
           <Button
             as="a"
-            href={workspaceUrl}
-            isDisabled={
-              !(worker.computerUseEnabled ? hasComputerUsePort : hasWorkerPort) || !isReady
-            }
+            href={workerUrl}
+            isDisabled={!hasWorkerPort || !isReady}
             rel="noreferrer"
             size="sm"
             startContent={<IconExternalLink size={16} />}
             target="_blank"
             variant="light"
           >
-            {worker.computerUseEnabled ? "Open desktop" : "Open in tab"}
+            Open in tab
           </Button>
+          {worker.computerUseEnabled ? (
+            <Button
+              as="a"
+              href={desktopUrl}
+              isDisabled={!hasComputerUsePort || !isReady}
+              rel="noreferrer"
+              size="sm"
+              startContent={<IconExternalLink size={16} />}
+              target="_blank"
+              variant="flat"
+            >
+              Open desktop
+            </Button>
+          ) : null}
           <Button
             color="danger"
             isIconOnly
@@ -515,15 +524,18 @@ export function WorkerWorkspace({
               {workerConnectionQuery.data?.vncPassword ? (
                 <span>{` · VNC password: ${workerConnectionQuery.data.vncPassword}`}</span>
               ) : null}
+              <span className="ml-2 text-gray-400">
+                Desktop opens in a separate tab so the main workspace stays on code-server.
+              </span>
             </div>
           ) : null}
 
-          {(worker.computerUseEnabled ? hasComputerUsePort : hasWorkerPort) && isReady ? (
+          {hasWorkerPort && isReady ? (
             <iframe
               allow="clipboard-read; clipboard-write; fullscreen; self"
               allowFullScreen
               className="min-h-0 flex-1 border-0 bg-[#282828]"
-              src={workspaceUrl}
+              src={workerUrl}
               title={workspaceTitle}
             />
           ) : isStopped ? (
@@ -534,8 +546,8 @@ export function WorkerWorkspace({
                 </p>
                 <p className="text-default-500 mt-2 text-xs">
                   Start this worker to relaunch its
-                  {worker.computerUseEnabled ? " desktop and " : " "}
-                  code-server session and reopen the persisted workspace.
+                  {worker.computerUseEnabled ? " code-server and desktop session" : " code-server session"}
+                  {" "}and reopen the persisted workspace.
                 </p>
                 <Button
                   className="mt-4"
@@ -555,9 +567,8 @@ export function WorkerWorkspace({
                   Worker is not ready
                 </p>
                 <p className="text-default-500 mt-2 text-xs">
-                  The {worker.computerUseEnabled ? "desktop" : "code-server"} endpoint
-                  is unavailable. Check the worker logs or Docker Desktop for the
-                  startup failure.
+                  The code-server endpoint is unavailable. Check the worker logs or
+                  Docker Desktop for the startup failure.
                 </p>
               </div>
             </div>

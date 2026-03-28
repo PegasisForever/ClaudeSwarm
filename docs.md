@@ -11,7 +11,7 @@
 ### Worker Runtime
 
 - One `code-server` IDE per worker.
-- Optional lightweight desktop exposed over browser VNC for computer-use workflows.
+- Optional desktop exposed over browser VNC for computer-use workflows, while the main workspace remains in `code-server`.
 - Persistent workspace storage mounted at `/home/kasm-user/workers`.
 - Optional repository clone on first boot.
 - Optional GitHub account injection for HTTPS clone, `gh`, and git operations.

@@ -48,6 +48,47 @@ wait_for_x_display() {
   done
 }
 
+launch_terminal() {
+  local title="$1"
+  local session_name="$2"
+
+  if command -v xfce4-terminal >/dev/null 2>&1; then
+    xfce4-terminal \
+      --title="$title" \
+      --working-directory="$WORKSPACE_DIR" \
+      --command="sh -lc 'mkdir -p \"$WORKSPACE_DIR\"; exec tmux new-session -A -s \"$session_name\" -c \"$WORKSPACE_DIR\"'" \
+      >/tmp/"$session_name"-terminal.log 2>&1 &
+    return 0
+  fi
+
+  xterm \
+    -title "$title" \
+    -fa Monospace \
+    -fs 11 \
+    -e sh -lc "mkdir -p \"$WORKSPACE_DIR\"; exec tmux new-session -A -s \"$session_name\" -c \"$WORKSPACE_DIR\"" \
+    >/tmp/"$session_name"-terminal.log 2>&1 &
+}
+
+launch_browser() {
+  if command -v chromium >/dev/null 2>&1; then
+    chromium --no-sandbox --disable-dev-shm-usage about:blank >/tmp/browser.log 2>&1 &
+    return 0
+  fi
+
+  if command -v firefox >/dev/null 2>&1; then
+    firefox about:blank >/tmp/browser.log 2>&1 &
+  fi
+}
+
+start_desktop_session() {
+  if command -v startxfce4 >/dev/null 2>&1; then
+    startxfce4 >/tmp/desktop-session.log 2>&1 &
+    return 0
+  fi
+
+  openbox-session >/tmp/desktop-session.log 2>&1 &
+}
+
 if ! command -v Xvfb >/dev/null 2>&1; then
   echo "Xvfb is required for computer use mode" >&2
   exit 1
@@ -72,11 +113,12 @@ wait_for_x_display
 
 export DISPLAY="$DISPLAY_VALUE"
 
-openbox-session >/tmp/openbox.log 2>&1 &
+start_desktop_session
 xsetroot -solid "#1f1f1f" >/dev/null 2>&1 || true
 
-xterm -title codex -fa Monospace -fs 11 -e sh -lc "mkdir -p \"$WORKSPACE_DIR\"; exec tmux new-session -A -s codex -c \"$WORKSPACE_DIR\"" >/tmp/xterm-codex.log 2>&1 &
-xterm -title terminal -fa Monospace -fs 11 -e sh -lc "mkdir -p \"$WORKSPACE_DIR\"; exec tmux new-session -A -s terminal -c \"$WORKSPACE_DIR\"" >/tmp/xterm-terminal.log 2>&1 &
+launch_terminal "codex" "codex"
+launch_terminal "terminal" "terminal"
+launch_browser
 
 x11vnc -storepasswd "$VNC_PASSWORD" "$HOME_DIR/.vnc/passwd" >/dev/null
 x11vnc \

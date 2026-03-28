@@ -35,6 +35,7 @@
             bun
             cacert
             code-server
+            chromium
             coreutils
             curl
             dbus
@@ -58,6 +59,7 @@
             procps
             python3
             python3Packages.websockify
+            jq
             ripgrep
             scrot
             shadow
@@ -70,6 +72,12 @@
             which
             x11vnc
             xdotool
+            xfce.thunar
+            xfce.xfce4-panel
+            xfce.xfce4-session
+            xfce.xfce4-terminal
+            xfce.xfdesktop
+            xfce.xfwm4
             xorg.xauth
             xorg.xhost
             xorg.xorgserver
