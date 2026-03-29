@@ -25,6 +25,8 @@ VNC_PASSWORD="${WORKER_VNC_PASSWORD:-computer-use}"
 VNC_SCREEN="${WORKER_VNC_RESOLUTION:-1440x900x24}"
 X11VNC_PORT="${WORKER_X11VNC_PORT:-5900}"
 NIX_DAEMON_SOCKET="${NIX_DAEMON_SOCKET:-/nix/var/nix/daemon-socket/socket}"
+NIX_BUILD_RETRY_COUNT="${NIX_BUILD_RETRY_COUNT:-5}"
+NIX_BUILD_RETRY_DELAY_S="${NIX_BUILD_RETRY_DELAY_S:-3}"
 
 mkdir -p "$COMPUTER_USE_STATE_DIR" "$(dirname "$COMPUTER_USE_PROFILE")"
 : > "$LOG_FILE"
@@ -175,7 +177,39 @@ wait_for_nix_daemon() {
     sleep 1
   done
 
-  sleep 1
+  sleep 3
+}
+
+build_flake_with_retry() {
+  local out_link="$1"
+  local flake_ref="$2"
+  local label="$3"
+  local attempt=1
+  local exit_code=1
+
+  while [ "$attempt" -le "$NIX_BUILD_RETRY_COUNT" ]; do
+    echo "Installing ${label} from ${flake_ref} (attempt ${attempt}/${NIX_BUILD_RETRY_COUNT})"
+    rm -rf "$out_link"
+
+    if HOME=/root USER=root NIX_REMOTE=daemon nix build \
+      --accept-flake-config \
+      --out-link "$out_link" \
+      "$flake_ref"; then
+      return 0
+    fi
+
+    exit_code=$?
+    echo "nix build for ${label} failed with exit code ${exit_code}"
+
+    if [ "$attempt" -lt "$NIX_BUILD_RETRY_COUNT" ]; then
+      wait_for_nix_daemon || true
+      sleep "$NIX_BUILD_RETRY_DELAY_S"
+    fi
+
+    attempt=$((attempt + 1))
+  done
+
+  return "$exit_code"
 }
 
 launch_terminal() {
@@ -268,18 +302,16 @@ prepare_flake_environment() {
   export NIX_CONFIG="$(printf '%s\n%s\n' "${NIX_CONFIG:-}" 'filter-syscalls = false')"
   wait_for_nix_daemon || fail "Nix daemon is not ready for computer use mode"
 
-  echo "Installing default computer-use environment from ${DEFAULT_COMPUTER_USE_FLAKE}"
-  HOME=/root NIX_REMOTE=daemon nix build \
-    --accept-flake-config \
-    --out-link "$COMPUTER_USE_DEFAULT_LINK" \
-    "$DEFAULT_COMPUTER_USE_FLAKE"
+  build_flake_with_retry \
+    "$COMPUTER_USE_DEFAULT_LINK" \
+    "$DEFAULT_COMPUTER_USE_FLAKE" \
+    "default computer-use environment"
 
   if [ -n "$EXTRA_COMPUTER_USE_FLAKE" ]; then
-    echo "Installing extra computer-use environment from ${EXTRA_COMPUTER_USE_FLAKE}"
-    HOME=/root NIX_REMOTE=daemon nix build \
-      --accept-flake-config \
-      --out-link "$COMPUTER_USE_EXTRA_LINK" \
-      "$EXTRA_COMPUTER_USE_FLAKE"
+    build_flake_with_retry \
+      "$COMPUTER_USE_EXTRA_LINK" \
+      "$EXTRA_COMPUTER_USE_FLAKE" \
+      "extra computer-use environment"
   fi
 
   ln -sfn "$COMPUTER_USE_DEFAULT_LINK" "$COMPUTER_USE_PROFILE"

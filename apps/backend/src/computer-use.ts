@@ -5,7 +5,7 @@ const COMPUTER_USE_STATE_DIR = "/home/kasm-user/.agentswarm/computer-use"
 const COMPUTER_USE_STATUS_FILE = `${COMPUTER_USE_STATE_DIR}/status`
 const COMPUTER_USE_ERROR_FILE = `${COMPUTER_USE_STATE_DIR}/error`
 const COMPUTER_USE_LOG_FILE = `${COMPUTER_USE_STATE_DIR}/provision.log`
-const COMPUTER_USE_EXEC_TIMEOUT_MS = 1_500
+const COMPUTER_USE_EXEC_TIMEOUT_MS = 5_000
 
 export type ComputerUseStatus = "disabled" | "preparing" | "ready" | "error"
 
