@@ -46,15 +46,10 @@ jobs:
         env:
           BEFORE_SHA: ${{ github.event.before }}
           CURRENT_SHA: ${{ github.sha }}
-          EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
 
           before_sha="$BEFORE_SHA"
-          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
-            before_sha="$(git rev-parse "${CURRENT_SHA}^" 2>/dev/null || true)"
-          fi
-
           if [ -z "$before_sha" ] || [ "$before_sha" = "0000000000000000000000000000000000000000" ]; then
             before_sha="$(git rev-list --max-parents=0 "$CURRENT_SHA" | tail -n 1)"
           fi
