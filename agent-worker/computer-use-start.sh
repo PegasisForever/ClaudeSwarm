@@ -182,7 +182,10 @@ wait_for_nix_daemon() {
 }
 
 warm_nix_daemon() {
-  HOME=/root USER=root NIX_REMOTE=daemon nix-store --version >/dev/null 2>&1 || true
+  env -u NIX_REMOTE \
+    HOME=/root \
+    USER=root \
+    nix-store --version >/dev/null 2>&1 || true
   return 0
 }
 
@@ -197,10 +200,13 @@ build_flake_with_retry() {
     echo "Installing ${label} from ${flake_ref} (attempt ${attempt}/${NIX_BUILD_RETRY_COUNT})"
     rm -rf "$out_link"
 
-    if HOME=/root USER=root NIX_REMOTE=daemon nix build \
-      --accept-flake-config \
-      --out-link "$out_link" \
-      "$flake_ref"; then
+    if env -u NIX_REMOTE \
+      HOME=/root \
+      USER=root \
+      nix build \
+        --accept-flake-config \
+        --out-link "$out_link" \
+        "$flake_ref"; then
       return 0
     else
       exit_code=$?
