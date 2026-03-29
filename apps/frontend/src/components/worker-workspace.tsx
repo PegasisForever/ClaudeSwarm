@@ -1,5 +1,6 @@
 import {
   Button,
+  Input,
   Modal,
   ModalBody,
   ModalContent,
@@ -14,6 +15,7 @@ import {
   IconCopy,
   IconRefresh,
   IconExternalLink,
+  IconPencil,
   IconPlayerPause,
   IconPlayerPlay,
   IconTrash,
@@ -30,10 +32,12 @@ type WorkerWorkspaceState = "active" | "cached" | "unloaded"
 type WorkerWorkspaceProps = {
   globalSettings: GlobalSettings
   isReplacing: boolean
+  isRenaming: boolean
   isUpdatingSsh: boolean
   isStarting: boolean
   isStopping: boolean
   onDestroyWorker: (id: string) => Promise<void>
+  onRenameWorker: (id: string, title: string) => Promise<void>
   onReplaceWorker: (id: string) => Promise<void>
   onSetWorkerSsh: (id: string, enabled: boolean) => Promise<void>
   onStartWorker: (id: string) => Promise<void>
@@ -158,10 +162,12 @@ async function copyTextToClipboard(value: string) {
 export function WorkerWorkspace({
   globalSettings,
   isReplacing,
+  isRenaming,
   isUpdatingSsh,
   isStarting,
   isStopping,
   onDestroyWorker,
+  onRenameWorker,
   onReplaceWorker,
   onSetWorkerSsh,
   onStartWorker,
@@ -172,11 +178,17 @@ export function WorkerWorkspace({
   const [destroyModalOpen, setDestroyModalOpen] = useState(false)
   const [githubModalOpen, setGithubModalOpen] = useState(false)
   const [isDestroying, setIsDestroying] = useState(false)
+  const [renameModalOpen, setRenameModalOpen] = useState(false)
+  const [renameTitle, setRenameTitle] = useState(worker.title)
   const [sshPanelOpen, setSshPanelOpen] = useState(false)
   const [copiedSshField, setCopiedSshField] = useState<
     "command" | "config" | "credential" | null
   >(null)
   const copyResetTimeoutRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    setRenameTitle(worker.title)
+  }, [worker.title])
 
   useEffect(() => {
     return () => {
@@ -272,6 +284,24 @@ export function WorkerWorkspace({
     }
   }
 
+  const handleRename = async () => {
+    const nextTitle = renameTitle.trim()
+
+    if (!nextTitle) {
+      window.alert("Worker title cannot be empty")
+      return
+    }
+
+    try {
+      await onRenameWorker(worker.id, nextTitle)
+      setRenameModalOpen(false)
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to rename worker"
+      window.alert(message)
+    }
+  }
+
   const handleCopySshField = async (
     field: "command" | "config" | "credential",
     value: string,
@@ -332,6 +362,42 @@ export function WorkerWorkspace({
         </ModalContent>
       </Modal>
 
+      <Modal
+        backdrop="blur"
+        isOpen={renameModalOpen}
+        onOpenChange={setRenameModalOpen}
+        placement="top-center"
+      >
+        <ModalContent>
+          {(close) => (
+            <>
+              <ModalHeader>Rename Worker</ModalHeader>
+              <ModalBody>
+                <Input
+                  autoFocus
+                  label="Worker title"
+                  onValueChange={setRenameTitle}
+                  placeholder="Enter a title"
+                  value={renameTitle}
+                />
+              </ModalBody>
+              <ModalFooter className="pt-3">
+                <Button onPress={close} variant="light">
+                  Cancel
+                </Button>
+                <Button
+                  isLoading={isRenaming}
+                  onPress={() => void handleRename()}
+                  variant="flat"
+                >
+                  Save
+                </Button>
+              </ModalFooter>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
+
       <WorkerGithubModal
         isOpen={githubModalOpen}
         onOpenChange={setGithubModalOpen}
@@ -341,6 +407,15 @@ export function WorkerWorkspace({
 
       <section className={`absolute inset-0 flex flex-col ${hiddenClass}`}>
         <div className="flex items-center justify-end gap-2 border-b border-gray-700 bg-[#282828] px-4 py-3">
+          <Button
+            isLoading={isRenaming}
+            onPress={() => setRenameModalOpen(true)}
+            size="sm"
+            startContent={<IconPencil size={16} />}
+            variant="light"
+          >
+            Rename
+          </Button>
           <Button
             onPress={() => setGithubModalOpen(true)}
             size="sm"

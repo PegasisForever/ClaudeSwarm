@@ -1,6 +1,6 @@
 import { docker, findManagedContainerById, WORKER_WORKSPACE_VOLUME_LABEL } from "./worker-container"
 import { clearWorkersCache } from "./list-workers"
-import { clearWorkerGithubAccount } from "./secrets"
+import { clearStoredWorkerTitle, clearWorkerGithubAccount } from "./secrets"
 
 export async function destroyWorkerContainer(
   id: string,
@@ -27,5 +27,6 @@ export async function destroyWorkerContainer(
   }
 
   clearWorkerGithubAccount(id)
+  clearStoredWorkerTitle(id)
   clearWorkersCache()
 }

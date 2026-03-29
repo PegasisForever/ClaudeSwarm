@@ -13,7 +13,7 @@ import {
   WORKER_TITLE_LABEL,
   WORKER_VNC_PORT,
 } from "./worker-container"
-import { getEffectiveGithubAccountForWorker } from "./secrets"
+import { getEffectiveGithubAccountForWorker, getStoredWorkerTitle } from "./secrets"
 import { readComputerUseState, type ComputerUseStatus } from "./computer-use"
 
 const WORKERS_CACHE_TTL_MS = 900
@@ -148,6 +148,7 @@ async function loadWorkers(): Promise<WorkersResult> {
       })
       const monitorStatus = getContainerMonitorStatus(inspection)
       const githubAccount = getEffectiveGithubAccountForWorker(container.Id)
+      const storedTitle = getStoredWorkerTitle(container.Id)
 
       const parentId =
         inspection.Config.Labels?.[WORKER_PARENT_LABEL] ??
@@ -159,9 +160,10 @@ async function loadWorkers(): Promise<WorkersResult> {
         info: {
           id: container.Id,
           title:
-            inspection.Config.Labels?.[WORKER_TITLE_LABEL] ??
-            container.Labels?.[WORKER_TITLE_LABEL] ??
-            inspection.Name.replace(/^\//, ""),
+            storedTitle ||
+            (inspection.Config.Labels?.[WORKER_TITLE_LABEL] ??
+              container.Labels?.[WORKER_TITLE_LABEL] ??
+              inspection.Name.replace(/^\//, "")),
           preset:
             inspection.Config.Labels?.[WORKER_PRESET_LABEL] ??
             container.Labels?.[WORKER_PRESET_LABEL] ??

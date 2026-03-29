@@ -1,6 +1,7 @@
 import { TRPCError, initTRPC } from "@trpc/server"
 import { z } from "zod"
 import {
+  renameManagedWorkerContainer,
   replaceManagedWorkerContainer,
   startManagedWorkerContainer,
   stopManagedWorkerContainer,
@@ -236,6 +237,29 @@ export const appRouter = router({
       }
 
       return undefined
+    }),
+  renameWorker: publicProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        title: z.string().trim().min(1),
+      }),
+    )
+    .output(z.void())
+    .mutation(async ({ input }) => {
+      try {
+        await renameManagedWorkerContainer(input.id, input.title)
+        return undefined
+      } catch (error) {
+        console.error("[renameWorker] failed to rename worker", error)
+
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message:
+            error instanceof Error ? error.message : "Failed to rename worker",
+          cause: error,
+        })
+      }
     }),
   workers: publicProcedure.output(workersSchema).query(async () => {
     return listWorkers()
